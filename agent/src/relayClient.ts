@@ -1,5 +1,5 @@
 // 出站桥：一条控制 WS 到会合点；每收到 open 就开一条数据流到会合点、一条本地 WS 到 exec-server，两头对接。
-// 沙箱→执行端方向的每个 JSON-RPC 请求过一遍协议过滤；越界的回错误、不转发。断线指数退避重连；exec-server 不动。
+// 沙箱→执行端方向的每个 JSON-RPC 请求过一遍协议过滤；越界的回错误、不转发。断线指数退避重连（握手超时、心跳没回也算断线）；exec-server 不动。
 import WebSocket from "ws";
 import { WindowsBridge } from "./windowsBridge.js";
 import type { WindowsMode, WindowsHelper, WindowsTemporary } from "./windowsRuntime.js";
@@ -30,7 +30,14 @@ export interface RelayClientOptions {
   onNotice?: (code: "codex_version_mismatch") => void;
   confirmPermission?: LocalPermissions["confirm"];
   codexHome?: string;
+  /** 控制通道的两个时限（毫秒）；测试才改。见 CONTROL_TIMING */
+  timing?: { handshakeMs: number; heartbeatMs: number };
 }
+
+/** 控制通道的两个时限。握手：从发起连接到收到 welcome，超了就断开重连——边缘卡死再重启时，
+ * 半开的连接既不报错也不关闭，不设时限就永远等下去（2026-10-19 测试电脑静默 17 分钟）。
+ * 心跳：连上后每隔这么久发一个 ping；上一次以来会合点什么都没回（消息、ping、pong 都算），就断开重连。 */
+export const CONTROL_TIMING = { handshakeMs: 15000, heartbeatMs: 30000 };
 
 export interface BridgeStats {
   connections: number;
@@ -117,6 +124,27 @@ export class RelayClient {
     this.status = "connecting";
     const ws = new WebSocket(this.controlUrl(), { maxPayload: 64 * 1024 });
     this.ctrl = ws;
+    const { handshakeMs, heartbeatMs } = this.opts.timing ?? CONTROL_TIMING;
+    let heard = true;
+    let heartbeat: NodeJS.Timeout | undefined;
+    const handshake = setTimeout(() => {
+      if (this.ctrl !== ws) return;
+      log("warn", "relay handshake timed out", { ms: handshakeMs });
+      ws.terminate();
+    }, handshakeMs);
+    const clearTimers = () => { clearTimeout(handshake); clearInterval(heartbeat); };
+    const beat = () => {
+      if (this.ctrl !== ws) { clearTimers(); return; }
+      if (!heard) {
+        log("warn", "relay silent, reconnecting", { ms: heartbeatMs });
+        ws.terminate();
+        return;
+      }
+      heard = false;
+      try { ws.ping(); } catch { /* 已在关，close 会接手 */ }
+    };
+    ws.on("ping", () => { heard = true; });
+    ws.on("pong", () => { heard = true; });
     ws.on("open", () => {
       // 机器信息只在控制通道的 hello 里报一次：白名单和上限改了要重启 start，重启就会重报
       const machine = this.opts.machineName
@@ -126,12 +154,14 @@ export class RelayClient {
     });
     ws.on("message", (data) => {
       if (this.ctrl !== ws || this.stopped) return;
+      heard = true;
       let msg: ControlMessage;
       try { msg = JSON.parse(String(data)); } catch { return; }
       if (!msg || typeof msg !== "object") return;
       if (msg.type === "welcome") {
         this.permissionReportsAvailable = Array.isArray(msg.capabilities) && msg.capabilities.includes(PERMISSION_CAPABILITY);
         this.status = "connected"; this.backoff = 1000; this.lastError = "";
+        clearTimeout(handshake); clearInterval(heartbeat); heartbeat = setInterval(beat, heartbeatMs);
         log("info", "relay connected");
       } else if (msg.type === "reject") {
         const info = humanizeReject(msg.reason, relayHost(this.opts.relayUrl));
@@ -154,6 +184,7 @@ export class RelayClient {
       }
     });
     const onDown = (why: string) => {
+      clearTimers();
       if (this.ctrl !== ws) return;
       this.clearReports();
       for (const close of this.serviceStreams) close();

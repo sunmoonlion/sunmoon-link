@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WebSocketServer, WebSocket, type RawData } from "ws";
 import { RelayClient } from "../src/relayClient.js";
 import { randomUUID } from "node:crypto";
+import { createServer, type Socket } from "node:net";
 import { validPermissionReport, type PermissionReport } from "../src/relayProtocol.js";
 
 type Waiter<T> = { promise: Promise<T>; resolve: (v: T) => void };
@@ -284,5 +285,43 @@ describe("RelayClient", () => {
     for (let i = 0; i < 150 && client.status !== "connected"; i++) await sleep(20);
     expect(client.status).toBe("connected");
     expect(relay.hellos.filter((h) => h.path === "/agent").length).toBe(2);
+  });
+
+  it("gives up a handshake that never completes and dials again", async () => {
+    // 边缘卡死时的样子：TCP 连得上，升级请求永远没有回音，也不报错、不关闭
+    const sockets: Socket[] = [];
+    const dead = createServer((socket) => { sockets.push(socket); });
+    await new Promise<void>((r) => dead.listen(0, "127.0.0.1", r));
+    const port = (dead.address() as any).port;
+    try {
+      makeClient({ relayUrl: `ws://127.0.0.1:${port}`, timing: { handshakeMs: 200, heartbeatMs: 30000 } });
+      for (let i = 0; i < 100 && sockets.length < 2; i++) await sleep(20);
+      expect(sockets.length).toBe(2);
+      expect(client.status).not.toBe("connected");
+    } finally {
+      client.stop();
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>((r) => dead.close(() => r()));
+    }
+  });
+
+  it("drops a control channel that has gone silent and reconnects", async () => {
+    makeClient({ timing: { handshakeMs: 15000, heartbeatMs: 100 } });
+    for (let i = 0; i < 50 && client.status !== "connected"; i++) await sleep(20);
+    expect(client.status).toBe("connected");
+    // 会合点那头不再读：收不到 ping，也就不回 pong，连接却没断
+    (relay.agentCtrl as any)._socket.pause();
+    for (let i = 0; i < 150 && relay.hellos.filter((h) => h.path === "/agent").length < 2; i++) await sleep(20);
+    expect(relay.hellos.filter((h) => h.path === "/agent").length).toBe(2);
+    for (let i = 0; i < 50 && client.status !== "connected"; i++) await sleep(20);
+    expect(client.status).toBe("connected");
+  });
+
+  it("keeps a control channel that answers its heartbeats", async () => {
+    makeClient({ timing: { handshakeMs: 15000, heartbeatMs: 50 } });
+    for (let i = 0; i < 50 && client.status !== "connected"; i++) await sleep(20);
+    await sleep(400);
+    expect(client.status).toBe("connected");
+    expect(relay.hellos.filter((h) => h.path === "/agent").length).toBe(1);
   });
 });
