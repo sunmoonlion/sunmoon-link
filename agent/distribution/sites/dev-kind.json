@@ -1,7 +1,7 @@
 {
   "site": "dev-kind",
-  "web_origin": "https://knowbench.sunmoonai.com:30443",
-  "relay_url": "wss://relay.sunmoonai.com:30443",
+  "web_origin": "https://knowbench.dev.sunmoonai.com:30443",
+  "relay_url": "wss://relay.dev.sunmoonai.com:30443",
   "trust": {
     "mode": "bundled-ca",
     "ca_file": "site/ca.pem"
