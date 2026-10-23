@@ -78,7 +78,8 @@ function selfCheck(bundle, manifestSha256) {
   const copy = path.join(place, path.basename(bundle));
   fs.cpSync(bundle, copy, { recursive: true, errorOnExist: true });
   fs.mkdirSync(path.join(place, 'distribution', 'test'), { recursive: true });
-  fs.copyFileSync(path.join(here, 'bundle.mjs'), path.join(place, 'distribution', 'bundle.mjs'));
+  // windows-candidate.mjs imports ../bundle.mjs, which imports its siblings (launch.mjs …): copy them all
+  for (const name of fs.readdirSync(here)) if (/\.(mjs|json)$/.test(name)) fs.copyFileSync(path.join(here, name), path.join(place, 'distribution', name));
   fs.copyFileSync(script, path.join(place, 'distribution', 'test', 'windows-candidate.mjs'));
   const result = JSON.parse(run(path.join(copy, 'node', 'node.exe'), [winPath(path.join(place, 'distribution', 'test', 'windows-candidate.mjs')), winPath(copy), manifestSha256],
     { cwd: place, timeout: 300000 }));
