@@ -21,11 +21,11 @@ describe("browser setup page boundaries",()=>{
       expect(main.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
       expect(main.headers["content-security-policy"]).toContain("connect-src 'self'");
       expect(main.body).toContain("去网站允许");
-      expect(main.body).toContain("复制连接码");
+      expect(main.body).toContain("复制确认码");
       expect(main.body).toContain("navigator.clipboard.writeText");
       expect(main.body).toContain("网站页应该已经自动打开并填好了码，只要点「允许」。没有自动打开就点下面「去网站允许」。");
       expect(main.body).toContain("别人发给你的码不要允许");
-      expect(main.body).not.toContain("在核对页输入连接码");
+      expect(main.body).not.toContain("在核对页输入确认码");
       expect(main.body).not.toMatch(/<script\s+src=|<link\s/);
       for(const url of [page.url.replace(/.$/,"Z"),page.url+"?other=1",page.url+"/../state",page.url+"/unknown"])
         expect((await request(url)).status).toBe(404);

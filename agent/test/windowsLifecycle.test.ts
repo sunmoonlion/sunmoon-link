@@ -76,7 +76,7 @@ describe.skipIf(process.platform !== "win32")("Windows CLI real lifecycle + loop
       expect(Number.isInteger(descendants.child)).toBe(true); expect(() => process.kill(descendants.child, 0)).not.toThrow();
       control!.close(4003, "test revocation"); await until(() => child!.exitCode !== null, 15000); expect(child.exitCode, stderr).toBe(3);
       for (const pid of [descendants.parent, descendants.child]) expect(() => process.kill(pid, 0)).toThrow();
-      const final = JSON.parse(fs.readFileSync(state, "utf8"));expect(final.relay.status).toBe("rejected");expect(final.relay.lastError).toContain("4003");expect(final.relay.lastError).toContain("重新连接账号");expect(JSON.stringify(final)+stderr).not.toContain("test-only-not-a-credential");
+      const final = JSON.parse(fs.readFileSync(state, "utf8"));expect(final.relay.status).toBe("rejected");expect(final.relay.lastError).toContain("4003");expect(final.relay.lastError).toContain("重新颁发令牌");expect(JSON.stringify(final)+stderr).not.toContain("test-only-not-a-credential");
       const closed = await new Promise<boolean>(resolve => { const socket = net.connect(Number(new URL(first.execServer.url).port), "127.0.0.1");socket.once("connect",()=>{socket.destroy();resolve(false)});socket.once("error",()=>resolve(true)); });expect(closed).toBe(true);
     } finally { if(child && child.exitCode===null)await killWindowsTree(child);if(server)await stopServer().catch(()=>{});fs.rmSync(base,{recursive:true,force:true}); }
   }, 100000);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // sunmoon-link：本地代理的命令行（0.5.0 前叫 sunmoon-agent）。
-//   init --relay URL --user ID --token-prompt [--root DIR ...] [--name 机器名]   隐藏输入令牌并写配置
+//   init --relay URL --user ID --token-prompt [--root DIR ...] [--name 电脑名]   隐藏输入令牌并写配置
 //   roots add|remove|list DIR                                白名单（改完要重启 start，外沙箱的 bind 在启动时定）
 //   ceiling show|set --sandbox MODE --network on|off         本地上限（本机改，仅本机生效）
 //   start                                                    前台运行：起 exec-server + 出站桥；状态写 status.json
@@ -9,7 +9,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import os from "node:os";
-import { CONFIG_DIR, CONFIG_PATH, defaultConfig, loadConfig, saveConfig, type AgentConfig } from "./config.js";
+import { CONFIG_DIR, CONFIG_PATH, defaultConfig, ensureDeviceId, loadConfig, saveConfig, type AgentConfig } from "./config.js";
 import { ExecServer } from "./execServer.js";
 import { log, registerSecret, configureWindowsLogs, safeData } from "./log.js";
 import { locateCodex } from "./paths.js";
@@ -46,7 +46,7 @@ function args(flag: string, argv: string[]): string[] {
   return out;
 }
 
-/** 被会合点拒绝（令牌无效、被吊销、被同用户的新代理顶掉）后退出用的码；换令牌后重新 init 再 start。 */
+/** 被会合点拒绝（令牌无效、被吊销、令牌已颁发给另一份本地 link）后退出用的码；换令牌后重新 init 再 start。 */
 const EXIT_REJECTED = 3;
 
 async function postPair(url: string, body: Record<string, string>): Promise<{ status: number; body: unknown }> {
@@ -89,6 +89,7 @@ async function main(argv: string[]): Promise<number> {
     const port = arg("--port", argv); if (port) cfg.execPort = Number(port);
     if (argv.includes("--no-outer-sandbox") && process.platform !== "win32") cfg.outerSandbox = false;
     if (process.platform === "win32") { cfg.windowsSandbox = await detectWindowsSandbox(cfg.codexHome, cfg.roots); console.log(`Windows sandbox: ${cfg.windowsSandbox.mode} (real process/start verified)`); }
+    ensureDeviceId(cfg);
     saveConfig(cfg);
     console.log(`已写 ${CONFIG_PATH}`);
     return 0;
@@ -119,7 +120,7 @@ async function main(argv: string[]): Promise<number> {
         post: postPair,
         sleep: (ms:number) => new Promise<void>(resolve => setTimeout(resolve, ms)),
         stopIfRunning: async () => {
-          if (process.platform === "win32" && await residentAlive() && !await stopResident()) throw new Error("请先停止正在运行的代理，再连接账号。");
+          if (process.platform === "win32" && await residentAlive() && !await stopResident()) throw new Error("请先退出正在运行的本地 link，再颁发令牌。");
         },
       };
       if(!pageMode)return await runPair({...options,cancelled:()=>cancel,stdout:line=>fs.writeSync(1,line+"\n")});
@@ -133,8 +134,8 @@ async function main(argv: string[]): Promise<number> {
           complete:async()=>{
             const deadline=Date.now()+30000;
             await autostart("enable");await startResident();
-            while(Date.now()<deadline){const status=readResidentStatus();if(status?.relay?.status==="connected"&&await residentAlive())return;if(status?.relay?.status==="rejected")throw new PairPageError(status.relay.lastError??"连接已失效，请重新连接账号。");await new Promise(resolve=>setTimeout(resolve,500));}
-            const status=readResidentStatus();throw new PairPageError(status?.relay?.lastError??"ETIMEDOUT: 代理还没有连上，请检查网络或代理设置。");
+            while(Date.now()<deadline){const status=readResidentStatus();if(status?.relay?.status==="connected"&&await residentAlive())return;if(status?.relay?.status==="rejected")throw new PairPageError(status.relay.lastError??"令牌已失效，请重新颁发令牌。");await new Promise(resolve=>setTimeout(resolve,500));}
+            const status=readResidentStatus();throw new PairPageError(status?.relay?.lastError??"ETIMEDOUT: 本地 link 还没有连上，请检查网络或代理设置。");
           }});
       }finally{cleanup?.();process.removeListener("SIGINT",abort);process.removeListener("SIGTERM",abort);}
       return 0;
@@ -183,7 +184,7 @@ async function main(argv: string[]): Promise<number> {
     const file = path.join(CONFIG_DIR, "mcp.json");
     if (argv[1] === "list") { console.log(JSON.stringify(loadMcp(file), null, 2)); return 0; }
     if (argv[1] !== "import" || argv.length !== 2) { usage(); return 2; }
-    if (process.platform !== "win32") { console.error("本轮 MCP 导入入口仅用于 Windows 代理。"); return 2; }
+    if (process.platform !== "win32") { console.error("本轮 MCP 导入入口仅用于 Windows 上的本地 link。"); return 2; }
     const source = path.join(os.homedir(), ".codex", "config.toml");
     const stat = fs.lstatSync(source);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.size > 1024 * 1024) throw new Error("Unsupported user Codex config file");
@@ -197,7 +198,7 @@ async function main(argv: string[]): Promise<number> {
     }
     if (!imported) { console.log("没有条目获得本机确认，配置未变更。"); return 1; }
     saveMcp(file, selected);
-    console.log("已保存确认过的条目；重启代理后生效。未复制用户其它配置或认证状态。"); return 0;
+    console.log("已保存确认过的条目；重启本地 link 后生效。未复制用户其它配置或认证状态。"); return 0;
   }
   if (cmd === "roots") {
     const sub = argv[1]; const dir = argv[2] ? path.resolve(argv[2]) : "";
@@ -236,6 +237,8 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
     if (!process.env.LOCALAPPDATA) throw new Error("LOCALAPPDATA is required for agent logs");
     configureWindowsLogs(path.join(process.env.LOCALAPPDATA, "sunmoon-link", "logs"), cfg.token);
   }
+  if (ensureDeviceId(cfg)) { saveConfig(cfg); log("info", "device id created", { code: "device_id_created" }); }
+  const identity = () => ({ deviceId: cfg.deviceId!, host: os.hostname().slice(0, 128), os: osLabel() });
   if (cfg.roots.length === 0) log("warn", "白名单为空：任何 process/start 都会被拒；用 sunmoon-link roots add <目录>");
   const codex = locateCodex();
   log("info", "sunmoon-link starting", { version: VERSION, machine: cfg.machineName, codex: codex.version, codexBin: codex.codexBin, bwrap: codex.bwrap, platform: process.platform });
@@ -264,7 +267,7 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
   let onRejected: (reason: string) => void = () => {};
   const relay = new RelayClient({
     windows: windows ? { ...windows, executorEnvironment: () => es.windowsEnv, confirmedHttpUrls: confirmedMcpUrls(mcpServers!) } : undefined, relayUrl: cfg.relayUrl, userId: cfg.userId, token: cfg.token, codexVersion: codex.version, softwareVersion: VERSION,
-    localUrl: () => es.url, ceiling: () => cfg.ceiling, roots: () => cfg.roots, machineName: () => cfg.machineName,
+    localUrl: () => es.url, ceiling: () => cfg.ceiling, roots: () => cfg.roots, machineName: () => cfg.machineName, identity,
     codexHome: cfg.codexHome, serviceRunsWritable,
     onRejected: (reason) => onRejected(reason),
     confirmPermission: windows ? (windowed ? windowsConfirm : localConfirm) : undefined,
@@ -285,7 +288,7 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
       const projects = new LocalProjects({ roots: () => cfg.roots, denied: () => [CONFIG_DIR, cfg.codexHome, ...(cfg.libraryDir ? [cfg.libraryDir] : [])], ceiling: () => cfg.ceiling,
         files: windows ? new WindowsFiles({ url: () => es.url, home: windows.home, roots: cfg.roots, mode: windows.mode, writable: cfg.ceiling.sandbox !== "read-only", helper: windows.helper, temporary: windows.temporary.directory }) : undefined,
         kill: windows ? killWindowsTree : undefined });
-      presence = await startLocalApi({ webOrigin, version: VERSION, machineName: cfg.machineName, config: () => cfg, files, settings, projects, connected: () => relay.status === "connected",
+      presence = await startLocalApi({ webOrigin, version: VERSION, machineName: cfg.machineName, config: () => cfg, files, settings, projects, connected: () => relay.status === "connected", identity, linkState: () => relay.linkState,
         onRequest: (category, code) => log(code ? "warn" : "debug", "local request", { category, ...(code ? { code } : {}) }),
         onEvent: (event, details) => log(event === "unavailable" ? "warn" : "info", `presence ${event}`, details) });
     } catch {
@@ -331,23 +334,23 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
 
 function usage(): void {
   console.log(`sunmoon-link ${VERSION}
-  init --relay ws://HOST:PORT --user ID --token T [--root DIR]... [--name 机器名] [--port N] [--no-outer-sandbox]
+  init --relay ws://HOST:PORT --user ID --token T [--root DIR]... [--name 电脑名] [--port N] [--no-outer-sandbox]
   init --relay wss://HOST --user ID --token-prompt [--root DIR]...  本机隐藏输入，不把令牌放进命令历史
   roots list | add DIR | remove DIR
   mcp import | list   本机逐项确认导入无凭据 HTTP MCP；拒绝管道输入确认
   ceiling show | set [--sandbox read-only|workspace-write|danger-full-access] [--network on|off]
-  start      前台运行；被会合点拒绝（令牌无效、被吊销、被同用户的新代理顶掉）时退出，退出码 3
+  start      前台运行；被会合点拒绝（令牌无效、被吊销、令牌已颁发给另一份本地 link）时退出，退出码 3
   status
   start --background   Windows 后台运行，本机确认用独立窗口
   stop                 Windows 正常停止；不强杀未知进程
-  tray [stop]          Windows 托盘；关闭托盘不停止代理
+  tray [stop]          Windows 托盘（tray stop 只关托盘；托盘菜单「退出 link」连本地 link 一起退出）
   settings show|set    本机设置；set 从 stdin 读非秘密 JSON，重启后生效
-  pair                       连接账号：显示连接码并轮询，令牌只写入本机配置
+  pair                       颁发令牌：显示确认码并轮询，令牌只写入本机配置
   pair --page                在默认浏览器打开本机接入页
   menu                       已连接则打开托盘，否则打开浏览器接入页
   pair-page-status           本机接入页状态（无令牌），供托盘排障
   autostart status|enable|disable   当前用户登录任务；安装时默认打开，可关闭
-  sandbox-setup --elevated         可选 UAC；先停止代理，仅同一 Windows 用户`);
+  sandbox-setup --elevated         可选 UAC；先退出本地 link，仅同一 Windows 用户`);
 }
 
 main(process.argv.slice(2)).then((code) => process.exit(code), (e) => { log("error", "fatal", { error: String(e?.stack ?? e) }); process.exit(1); });

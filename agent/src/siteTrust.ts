@@ -76,9 +76,9 @@ export function installedLaunchError(moduleUrl: string): string | null {
   try { site = installedSite(moduleUrl); }
   catch (error) { return error instanceof Error ? error.message : "SITE_CA: 站点文件无法读取。请重新从网页下载安装包。"; }
   if (!site) return null;
-  if (!process.execArgv.includes("--use-system-ca")) return "SITE_LAUNCH: 代理没有按安装包的方式启动。请从安装目录的入口重新打开。";
+  if (!process.execArgv.includes("--use-system-ca")) return "SITE_LAUNCH: 本地 link 没有按安装包的方式启动。请从安装目录的入口重新打开。";
   if (site.mode === "bundled-ca" && !sameCaFile(process.env.NODE_EXTRA_CA_CERTS, site.caPath ?? "")) {
-    return "SITE_LAUNCH: 代理没有使用安装包里的站点证书。请从安装目录的入口重新打开。";
+    return "SITE_LAUNCH: 本地 link 没有使用安装包里的站点证书。请从安装目录的入口重新打开。";
   }
   if (site.mode === "system" && process.env.NODE_EXTRA_CA_CERTS) {
     return "SITE_LAUNCH: 正式站点不应额外指定证书。请从安装目录的入口重新打开。";

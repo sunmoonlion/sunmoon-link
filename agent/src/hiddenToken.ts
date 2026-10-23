@@ -51,7 +51,7 @@ export async function readHiddenToken(
     catch { finish("无法启用隐藏输入，初始化已停止。"); return; }
     input.on("data", data); input.once("end", closed); input.once("error", closed);
     process.once("SIGINT", interrupted); process.once("SIGTERM", interrupted);
-    output.write("粘贴网页给本人的代理令牌后按回车（不回显；Ctrl+C 取消）：");
+    output.write("粘贴网页给本人的令牌后按回车（不回显；Ctrl+C 取消）：");
     input.resume();
   });
 }

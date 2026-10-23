@@ -15,20 +15,20 @@ function hostName(host: string | undefined): string {
 
 const CERT = "这台电脑不信任站点证书。请重新从网页下载安装包；若仍出现，联系管理员。";
 const offline = (host?: string) => `连不上 ${hostName(host)}。检查网络或代理设置。`;
-const EXPIRED = "这台电脑的连接已失效，请点『重新连接账号』。";
-const REPLACED = "你的账号已在另一台电脑上连接，这台已断开。";
+const EXPIRED = "令牌已失效，请在托盘点『重新颁发令牌』。";
+const REPLACED = "这个账号的令牌已颁发给另一份本地 link，这台已断开。";
 
 export function humanizeReject(reason: unknown, host?: string): HumanError {
   const r = typeof reason === "string" ? reason : "";
   if (r === "replaced by a newer agent for this user") return shown("4000", REPLACED);
   if (r === "token revoked") return shown("4003", EXPIRED);
   if (r === "bad token" || r.startsWith("jwt ") || r === "malformed jwt") return shown("401", EXPIRED);
-  if (r === "pairing-expired") return shown("expired", "连接码已过期，请重新获取。");
-  if (r === "pairing-denied") return shown("denied", "连接码已被拒绝，请重新获取。");
+  if (r === "pairing-expired") return shown("expired", "确认码已过期，请重新获取。");
+  if (r === "pairing-denied") return shown("denied", "确认码已被拒绝，请重新获取。");
   if (r.startsWith("codex version mismatch") || r.startsWith("protocol ") || r === "missing codex version") {
-    return shown("version-mismatch", "代理与服务端版本不匹配，连接已拒绝。请安装与服务端配套的代理版本后重试。");
+    return shown("version-mismatch", "本地 link 与服务端版本不匹配，连接已拒绝。请安装与服务端配套的本地 link 后重试。");
   }
-  return shown("relay-rejected", `连不上 ${hostName(host)}。请核对服务地址和代理版本后再试。`);
+  return shown("relay-rejected", `连不上 ${hostName(host)}。请核对服务地址和本地 link 的版本后再试。`);
 }
 
 export function humanizeClose(code: number): HumanError {

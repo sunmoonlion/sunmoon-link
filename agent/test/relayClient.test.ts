@@ -135,6 +135,13 @@ describe("RelayClient", () => {
     expect(relay.hellos.find((h) => h.path === "/agent-data")?.machine).toBeUndefined();
   });
 
+  it("adds device id, host and os to the machine when an identity is given (ledger 143)", async () => {
+    makeClient({ machineName: () => "laptop", identity: () => ({ deviceId: "0f8fad5b-d9cb-469f-a165-70867728950e", host: "DESKTOP-1", os: "Windows" }) });
+    for (let i = 0; i < 50 && client.status !== "connected"; i++) await sleep(20);
+    expect(relay.hellos.find((h) => h.path === "/agent").machine).toMatchObject({ name: "laptop", device_id: "0f8fad5b-d9cb-469f-a165-70867728950e", host: "DESKTOP-1", os: "Windows" });
+    expect(client.linkState).toBe("connected");
+  });
+
   it("stays compatible when no machine name is given: the hello carries no machine", async () => {
     makeClient();
     for (let i = 0; i < 50 && client.status !== "connected"; i++) await sleep(20);
@@ -233,7 +240,8 @@ describe("RelayClient", () => {
     await relay.close(); relay = new FakeRelay("bad token"); await relay.start();
     makeClient();
     for (let i = 0; i < 50 && client.status !== "rejected"; i++) await sleep(20);
-    expect(client.status).toBe("rejected"); expect(client.lastError).toBe("401: 这台电脑的连接已失效，请点『重新连接账号』。");
+    expect(client.status).toBe("rejected"); expect(client.lastError).toBe("401: 令牌已失效，请在托盘点『重新颁发令牌』。");
+    expect(client.linkState).toBe("token_invalid");
   });
 
   it("calls onRejected once when the relay rejects the hello", async () => {
@@ -242,7 +250,7 @@ describe("RelayClient", () => {
     makeClient({ onRejected: (r) => seen.push(r) });
     for (let i = 0; i < 50 && seen.length === 0; i++) await sleep(20);
     await sleep(200);
-    expect(seen).toEqual(["401: 这台电脑的连接已失效，请点『重新连接账号』。"]);
+    expect(seen).toEqual(["401: 令牌已失效，请在托盘点『重新颁发令牌』。"]);
   });
 
   it("calls onRejected once when replaced by a newer agent (4000)", async () => {
@@ -252,7 +260,7 @@ describe("RelayClient", () => {
     relay.agentCtrl!.close(4000, "x");
     for (let i = 0; i < 50 && seen.length === 0; i++) await sleep(20);
     await sleep(200);
-    expect(seen).toEqual(["4000: 你的账号已在另一台电脑上连接，这台已断开。"]);
+    expect(seen).toEqual(["4000: 这个账号的令牌已颁发给另一份本地 link，这台已断开。"]);
   });
 
   it("does not call onRejected on an ordinary disconnect", async () => {
@@ -264,13 +272,14 @@ describe("RelayClient", () => {
     expect(seen).toEqual([]);
   });
 
-  for (const [code, reason] of [[4000, "4000: 你的账号已在另一台电脑上连接，这台已断开。"], [4003, "4003: 这台电脑的连接已失效，请点『重新连接账号』。"]] as const) {
+  for (const [code, reason] of [[4000, "4000: 这个账号的令牌已颁发给另一份本地 link，这台已断开。"], [4003, "4003: 令牌已失效，请在托盘点『重新颁发令牌』。"]] as const) {
     it(`does not reconnect after close ${code}`, async () => {
       makeClient();
       for (let i = 0; i < 50 && client.status !== "connected"; i++) await sleep(20);
       relay.agentCtrl!.close(code, "x");
       for (let i = 0; i < 50 && client.status !== "rejected"; i++) await sleep(20);
       expect(client.status).toBe("rejected"); expect(client.lastError).toBe(reason);
+      expect(client.linkState).toBe(code === 4000 ? "replaced" : "token_invalid");
       await sleep(1500);
       expect(relay.hellos.filter((h) => h.path === "/agent").length).toBe(1);
     });

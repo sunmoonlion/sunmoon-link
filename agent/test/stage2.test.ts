@@ -65,7 +65,7 @@ describe("bounded logs and useful rejection", () => {
     for (const value of [secret, "some-token", "raw-secret", "bearer-canary", "query-canary", "key-canary", "user:pass"]) expect(out).not.toContain(value);
     expect(safeText("escape\x1b\nmessage")).not.toContain("\x1b");
     expect(JSON.stringify(rejectionInfo("untrusted fixture-secret"))).not.toContain("fixture-secret");
-    expect(rejectionInfo("token revoked").message).toContain("重新连接账号");
+    expect(rejectionInfo("token revoked").message).toContain("重新颁发令牌");
     expect(rejectionInfo("codex version mismatch").message).toContain("配套");
   });
 });

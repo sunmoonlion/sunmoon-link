@@ -25,7 +25,9 @@ export interface RelayClientOptions {
   roots: () => readonly string[];
   /** 这台机器的名字（网页「我的机器」里显示）；不给就不上报机器信息 */
   machineName?: () => string;
-  /** 被会合点拒绝（令牌无效、被吊销、被同用户的新代理顶掉）时调用一次；之后不会再重连。 */
+  /** 设备编号、主机名、系统，随机器信息一起报（账 143）；不给就不报 */
+  identity?: () => { deviceId: string; host: string; os: string };
+  /** 被会合点拒绝（令牌无效、被吊销、令牌已颁发给另一份本地 link）时调用一次；之后不会再重连。 */
   onRejected?: (reason: string) => void;
   onNotice?: (code: "codex_version_mismatch") => void;
   confirmPermission?: LocalPermissions["confirm"];
@@ -40,6 +42,9 @@ export interface RelayClientOptions {
  * 半开的连接既不报错也不关闭，不设时限就永远等下去（2026-10-19 测试电脑静默 17 分钟）。
  * 心跳：连上后每隔这么久发一个 ping；上一次以来会合点什么都没回（消息、ping、pong 都算），就断开重连。 */
 export const CONTROL_TIMING = { handshakeMs: 15000, heartbeatMs: 30000 };
+
+/** 给本机探测接口看的连接状态（会合点备忘第五节）：网页据此分清令牌失效、被顶替、版本不配和连不上。 */
+export type LinkState = "connected" | "connecting" | "unreachable" | "token_invalid" | "replaced" | "version_mismatch" | "rejected";
 
 export interface BridgeStats {
   connections: number;
@@ -60,6 +65,8 @@ export class RelayClient {
   readonly stats: BridgeStats = { connections: 0, active: 0, forwardedUp: 0, forwardedDown: 0, denied: 0, service: { connections: 0, active: 0, requests: 0, denied: 0 } };
   status: "disconnected" | "connecting" | "connected" | "rejected" = "disconnected";
   lastError = "";
+  /** lastError 的代码部分（connectionMessages 的 code）：401/4003 令牌、4000 被顶替、version-mismatch、网络错误码 */
+  lastErrorCode = "";
   lastNotice = "";
   private permissionReportsAvailable = false;
   private controlEpoch = 0;
@@ -113,6 +120,20 @@ export class RelayClient {
     for (const close of this.streams) close();
   }
 
+  private fail(info: { code: string; message: string }): void {
+    this.lastError = info.message; this.lastErrorCode = info.code;
+  }
+
+  get linkState(): LinkState {
+    if (this.status === "connected") return "connected";
+    const code = this.lastErrorCode;
+    if (code === "401" || code === "4003") return "token_invalid";
+    if (code === "4000") return "replaced";
+    if (code === "version-mismatch") return "version_mismatch";
+    if (this.status === "rejected") return "rejected";
+    return code ? "unreachable" : "connecting";
+  }
+
   private controlUrl(): string {
     return this.opts.relayUrl.replace(/\/$/, "") + "/agent";
   }
@@ -132,6 +153,7 @@ export class RelayClient {
     const handshake = setTimeout(() => {
       if (this.ctrl !== ws) return;
       log("warn", "relay handshake timed out", { ms: handshakeMs });
+      this.fail(humanizeTransport({ code: "ETIMEDOUT" }, relayHost(this.opts.relayUrl)));
       ws.terminate();
     }, handshakeMs);
     const clearTimers = () => { clearTimeout(handshake); clearInterval(heartbeat); };
@@ -149,8 +171,9 @@ export class RelayClient {
     ws.on("pong", () => { heard = true; });
     ws.on("open", () => {
       // 机器信息只在控制通道的 hello 里报一次：白名单和上限改了要重启 start，重启就会重报
+      const id = this.opts.identity?.();
       const machine = this.opts.machineName
-        ? { name: this.opts.machineName(), roots: [...this.opts.roots()], ceiling: { ...this.opts.ceiling() } }
+        ? { name: this.opts.machineName(), roots: [...this.opts.roots()], ceiling: { ...this.opts.ceiling() }, ...(id ? { device_id: id.deviceId, host: id.host, os: id.os } : {}) }
         : undefined;
       ws.send(hello({ role: "agent", user: this.opts.userId, token: this.opts.token, codex: this.opts.codexVersion, software: this.opts.softwareVersion, capabilities: [SERVICE_CAPABILITY, ...(this.opts.serviceRunsWritable ? [SERVICE_RUNS_CAPABILITY] : [])], ...(machine ? { machine } : {}) }));
     });
@@ -162,12 +185,12 @@ export class RelayClient {
       if (!msg || typeof msg !== "object") return;
       if (msg.type === "welcome") {
         this.permissionReportsAvailable = Array.isArray(msg.capabilities) && msg.capabilities.includes(PERMISSION_CAPABILITY);
-        this.status = "connected"; this.backoff = 1000; this.lastError = "";
+        this.status = "connected"; this.backoff = 1000; this.lastError = ""; this.lastErrorCode = "";
         clearTimeout(handshake); clearInterval(heartbeat); heartbeat = setInterval(beat, heartbeatMs);
         log("info", "relay connected");
       } else if (msg.type === "reject") {
         const info = humanizeReject(msg.reason, relayHost(this.opts.relayUrl));
-        this.status = "rejected"; this.lastError = info.message;
+        this.status = "rejected"; this.fail(info);
         log("error", info.message);
         this.stopped = true; ws.close();
         this.notifyRejected();
@@ -181,7 +204,7 @@ export class RelayClient {
         }
       } else if (msg.type === "notice" && msg.code === "codex_version_mismatch") {
         this.lastNotice = "codex_version_mismatch";
-        log("warn", "沙箱与本地代理的 Codex 版本不一致，已拒绝连接；请更新成配套版本后重试。代理继续等待兼容的连接。");
+        log("warn", "沙箱与本地 link 的 Codex 版本不一致，已拒绝连接；请更新成配套版本后重试。本地 link 继续等待兼容的连接。");
         try { this.opts.onNotice?.(msg.code); } catch { log("warn", "notice handler failed"); }
       }
     });
@@ -202,8 +225,7 @@ export class RelayClient {
       // 这两种都不重连：重连只会把对方再顶掉，两个代理每秒互踢（KIND 09 实测）
       if ((code === 4000 || code === 4003) && this.ctrl === ws) {
         this.status = "rejected";
-        const info = humanizeClose(code);
-        this.lastError = info.message;
+        this.fail(humanizeClose(code));
         this.stopped = true;
         log("error", this.lastError, { code });
         this.notifyRejected();
@@ -211,7 +233,7 @@ export class RelayClient {
       onDown(`close ${code}`);
     });
     ws.on("error", (error: { code?: unknown; message?: unknown }) => {
-      this.lastError = humanizeTransport(error, relayHost(this.opts.relayUrl)).message;
+      this.fail(humanizeTransport(error, relayHost(this.opts.relayUrl)));
       onDown(this.lastError);
     });
   }

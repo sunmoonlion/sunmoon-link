@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -29,6 +30,18 @@ export interface AgentConfig {
   outerSandbox: boolean;
   /** 这台机器在网页「我的机器」里显示的名字；默认用主机名。同一个用户的两台机器要不同名 */
   machineName: string;
+  /** 设备编号：第一次运行时随机生成，存在这台电脑的配置里一直沿用，重新颁发令牌也不变。它代表「这台电脑上的这一份本地 link」，
+   * 不含电脑或 link 的信息，不读硬件指纹；重装（配置删了）就是新编号（会合点备忘第三节，账 143）。 */
+  deviceId?: string;
+}
+
+const DEVICE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+/** 没有设备编号就生成一个；生成了回 true（调用方负责存）。不放进 defaultConfig：那样每次读旧配置都会换一个新编号。 */
+export function ensureDeviceId(cfg: AgentConfig): boolean {
+  if (cfg.deviceId) return false;
+  cfg.deviceId = randomUUID();
+  return true;
 }
 
 // 0.5.0 起默认配置目录随命令改名为 .sunmoon-link（0028）：改名后的工作台从空库起，不认旧的配对与凭据，要重新接入；
@@ -53,7 +66,7 @@ export function defaultConfig(): AgentConfig {
 export function loadConfig(file = CONFIG_PATH): AgentConfig {
   if (!fs.existsSync(file)) throw new Error(`没有配置：${file}（先跑 sunmoon-link init）`);
   let raw: any;
-  try { raw = JSON.parse(fs.readFileSync(file, "utf8")); } catch { throw new Error("代理配置无法读取或 JSON 无效；请在本机检查 config.json"); }
+  try { raw = JSON.parse(fs.readFileSync(file, "utf8")); } catch { throw new Error("本地 link 的配置无法读取或 JSON 无效；请在本机检查 config.json"); }
   const cfg: AgentConfig = { ...defaultConfig(), ...raw, ceiling: { ...defaultConfig().ceiling, ...(raw.ceiling ?? {}) } };
   validate(cfg);
   return cfg;
@@ -69,6 +82,7 @@ export function validate(cfg: AgentConfig): void {
   try { const u = new URL(cfg.relayUrl); if (!["ws:", "wss:"].includes(u.protocol) || u.username || u.password || u.search || u.hash) throw new Error(); }
   catch { throw new Error("relayUrl 必须是 ws:// 或 wss://，且不能包含口令、查询参数或片段"); }
   if (!cfg.userId) throw new Error("userId 不能为空");
+  if (cfg.deviceId !== undefined && (typeof cfg.deviceId !== "string" || !DEVICE_ID.test(cfg.deviceId))) throw new Error("deviceId 非法");
   if (cfg.libraryDir != null) {
     let valid = false;
     try { valid = typeof cfg.libraryDir === "string" && canonicalPath(cfg.libraryDir) !== null && fs.statSync(cfg.libraryDir).isDirectory(); } catch { /* Fixed error below, without the private directory. */ }

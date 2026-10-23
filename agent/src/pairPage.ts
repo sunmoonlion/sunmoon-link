@@ -44,15 +44,15 @@ export async function openDefaultBrowser(url:string):Promise<boolean>{
   }catch{return false;}
 }
 
-function pageHtml(scriptNonce:string):string{return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SunMoon · 连接电脑</title><style nonce="${scriptNonce}">
+function pageHtml(scriptNonce:string):string{return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SunMoon · 颁发令牌</title><style nonce="${scriptNonce}">
 body{font:17px system-ui,sans-serif;max-width:660px;margin:7vh auto;padding:24px;color:#182235;background:#f5f7fb}main{background:white;padding:28px;border-radius:14px}#code{font:42px monospace;letter-spacing:4px;cursor:pointer}button,a{display:inline-block;margin:10px 12px 10px 0}button{padding:10px 18px}#next{white-space:pre-line}#message{white-space:pre-line}a{color:#1654a3}
-</style></head><body><main><h1>连接你的电脑</h1><p id="message">正在取连接码…</p><div id="code" title="点击复制连接码"></div><p id="clock"></p><a id="verify" target="_blank" rel="noopener noreferrer" hidden>去网站允许</a><button id="copy" hidden>复制连接码</button><span id="copyStatus" role="status" aria-live="polite"></span><p id="warning" hidden>别人发给你的码不要允许。</p><p id="next" hidden>接下来选文件夹：托盘图标右键 → 白名单与上限设置。不选的话工作和专家碰不到你的文件。\n开机自动运行已打开，可在托盘关闭。</p><button id="refresh">重新获取</button><button id="cancel">取消</button><button id="done" hidden>完成</button></main><script nonce="${scriptNonce}">
+</style></head><body><main><h1>给本地 link 颁发令牌</h1><p id="message">正在取确认码…</p><div id="code" title="点击复制确认码"></div><p id="clock"></p><a id="verify" target="_blank" rel="noopener noreferrer" hidden>去网站允许</a><button id="copy" hidden>复制确认码</button><span id="copyStatus" role="status" aria-live="polite"></span><p id="warning" hidden>别人发给你的码不要允许。</p><p id="next" hidden>接下来选文件夹：托盘图标右键 → 这台电脑上的设置。不选的话工作和专家碰不到你的文件。\n登录时自动运行已打开，可在「这台电脑上的设置」里关闭。</p><button id="refresh">重新获取</button><button id="cancel">取消</button><button id="done" hidden>完成</button></main><script nonce="${scriptNonce}">
 const base=location.pathname,byId=id=>document.getElementById(id);let polling=false,finished=false,copyTimer;
 async function command(name){try{const response=await fetch(base+'/'+name,{method:'POST',cache:'no-store',credentials:'omit'});if(!response.ok)throw Error();if(name==='cancel'||name==='done'){finished=true;byId('message').textContent=name==='done'?'接入已完成，可以关闭此页。':'已取消，可以关闭此页。';for(const id of ['refresh','cancel','done','verify'])byId(id).hidden=true;}}catch{byId('message').textContent='操作未完成，请查看托盘连接状态。';}}
 for(const name of ['refresh','cancel','done'])byId(name).onclick=()=>command(name);
-async function copyCode(){const value=byId('code').textContent||'';if(!value)return;try{if(!navigator.clipboard?.writeText)throw Error('clipboard unavailable');await navigator.clipboard.writeText(value);byId('copyStatus').textContent='已复制';clearTimeout(copyTimer);copyTimer=setTimeout(()=>byId('copyStatus').textContent='',2000);}catch{const range=document.createRange();range.selectNodeContents(byId('code'));const selection=window.getSelection();selection?.removeAllRanges();selection?.addRange(range);byId('copyStatus').textContent='复制失败，连接码已选中，请手动复制。';}}
+async function copyCode(){const value=byId('code').textContent||'';if(!value)return;try{if(!navigator.clipboard?.writeText)throw Error('clipboard unavailable');await navigator.clipboard.writeText(value);byId('copyStatus').textContent='已复制';clearTimeout(copyTimer);copyTimer=setTimeout(()=>byId('copyStatus').textContent='',2000);}catch{const range=document.createRange();range.selectNodeContents(byId('code'));const selection=window.getSelection();selection?.removeAllRanges();selection?.addRange(range);byId('copyStatus').textContent='复制失败，确认码已选中，请手动复制。';}}
 byId('copy').onclick=copyCode;byId('code').onclick=copyCode;
-async function poll(){if(polling||finished)return;polling=true;try{const response=await fetch(base+'/state',{cache:'no-store',credentials:'omit'});if(!response.ok)throw Error();const state=await response.json();byId('code').textContent=state.user_code||'';byId('message').textContent=state.message||(state.event==='code'?'网站页应该已经自动打开并填好了码，只要点「允许」。没有自动打开就点下面「去网站允许」。':'正在取连接码…');const remaining=state.expires_at?Math.max(0,Math.ceil((Date.parse(state.expires_at)-Date.now())/1000)):0;byId('clock').textContent=state.event==='code'?(remaining?'剩余 '+remaining+' 秒':'连接码已过期，请重新获取。'):'';byId('warning').hidden=state.event!=='code';byId('verify').hidden=!state.verify_url;byId('copy').hidden=state.event!=='code';if(state.verify_url)byId('verify').href=state.verify_url;const online=state.status==='connected';byId('next').hidden=!online;byId('done').hidden=!online;byId('refresh').hidden=online||state.status==='starting';byId('refresh').textContent=state.status==='startup-failed'?'重试':'重新获取';}catch{byId('message').textContent='本机接入页已停止，请从托盘重新连接账号。';}finally{polling=false;}}
+async function poll(){if(polling||finished)return;polling=true;try{const response=await fetch(base+'/state',{cache:'no-store',credentials:'omit'});if(!response.ok)throw Error();const state=await response.json();byId('code').textContent=state.user_code||'';byId('message').textContent=state.message||(state.event==='code'?'网站页应该已经自动打开并填好了码，只要点「允许」。没有自动打开就点下面「去网站允许」。':'正在取确认码…');const remaining=state.expires_at?Math.max(0,Math.ceil((Date.parse(state.expires_at)-Date.now())/1000)):0;byId('clock').textContent=state.event==='code'?(remaining?'剩余 '+remaining+' 秒':'确认码已过期，请重新获取。'):'';byId('warning').hidden=state.event!=='code';byId('verify').hidden=!state.verify_url;byId('copy').hidden=state.event!=='code';if(state.verify_url)byId('verify').href=state.verify_url;const online=state.status==='connected';byId('next').hidden=!online;byId('done').hidden=!online;byId('refresh').hidden=online||state.status==='starting';byId('refresh').textContent=state.status==='startup-failed'?'重试':'重新获取';}catch{byId('message').textContent='本机接入页已停止，请在托盘点『重新颁发令牌』。';}finally{polling=false;}}
 poll();setInterval(poll,1000);
 </script></body></html>`;}
 
@@ -65,7 +65,7 @@ export interface PairPage {
 export async function createPairPage(handlers:{refresh:()=>Promise<void>;cancel:()=>Promise<void>;done:()=>Promise<void>}):Promise<PairPage>{
   const nonce=randomBytes(32).toString("hex"),scriptNonce=randomBytes(24).toString("base64");
   const base="/setup/"+nonce;
-  let state:PageState={event:"starting",message:"正在取连接码…"},origin="",closed=false;
+  let state:PageState={event:"starting",message:"正在取确认码…"},origin="",closed=false;
   const server=http.createServer(async(req,res)=>{
     res.setHeader("Cache-Control","no-store");res.setHeader("Referrer-Policy","no-referrer");
     res.setHeader("X-Content-Type-Options","nosniff");res.setHeader("X-Frame-Options","DENY");
@@ -111,7 +111,7 @@ export async function runPairPage(options:{
   const ended=new Promise<void>(resolve=>finish=resolve);
   const page=await createPairPage({refresh:async()=>refresh(),cancel:async()=>stop(),done:async()=>stop()});
   const startup=async()=>{
-    page.update({event:"result",status:"starting",account:page.state().account,message:"已连接到 "+(page.state().account??"你的账号")+"，正在启动代理…"});
+    page.update({event:"result",status:"starting",account:page.state().account,message:"已给 "+(page.state().account??"你的账号")+" 颁发令牌，正在启动本地 link…"});
     try{await options.complete();page.update({event:"result",status:"connected",account:page.state().account,message:"已在线"});}
     catch(error){page.update({event:"result",status:"startup-failed",account:page.state().account,message:error instanceof PairPageError?error.message:"代理还没有连上，请检查网络或代理设置，然后点重试。"});}
   };
@@ -119,7 +119,7 @@ export async function runPairPage(options:{
     cancelled=false;
     generation=(async()=>{
       if(approved){await startup();return;}
-      page.update({event:"starting",message:"正在取连接码…"});
+      page.update({event:"starting",message:"正在取确认码…"});
       try{
         const code=await options.run(()=>cancelled,value=>{
           page.update(value);

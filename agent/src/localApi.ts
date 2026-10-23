@@ -10,6 +10,10 @@ export interface LocalApiOptions {
   version: string;
   machineName: string;
   connected: () => boolean;
+  /** 设备编号、主机名、系统（账 143）：网页拿它和「配给当前账号的那份本地 link」的编号比 */
+  identity?: () => { deviceId: string; host: string; os: string };
+  /** 连接状态（relayClient.linkState）：网页分清令牌失效和连不上 */
+  linkState?: () => string;
   config?: () => AgentConfig;
   files?: LocalFiles;
   ticket?: TicketVerifier;
@@ -75,7 +79,9 @@ function createHandler(options: LocalApiOptions) {
     }
     if (presence) {
       if (req.method !== "GET") { respond(res, 405, { ...responseHeaders, Allow: "GET, OPTIONS" }, JSON.stringify({ code: "method_not_allowed", message: "method_not_allowed" })); return; }
-      respond(res, 200, responseHeaders, JSON.stringify({ agent: "sunmoon-agent", version: options.version, machine_name: options.machineName, connected: options.connected() })); return;
+      const id = options.identity?.();
+      respond(res, 200, responseHeaders, JSON.stringify({ agent: "sunmoon-agent", version: options.version, machine_name: options.machineName, connected: options.connected(),
+        ...(id ? { device_id: id.deviceId, host: id.host, os: id.os } : {}), ...(options.linkState ? { link_state: options.linkState() } : {}) })); return;
     }
     const controller = new AbortController(); pending.add(controller);
     const abort = () => controller.abort();

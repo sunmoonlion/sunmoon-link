@@ -162,42 +162,39 @@ function Invoke-Agent([string[]]$Command, $Body=$null) {
     if ($ExitCode -ne 0) { throw '操作未完成，请使用 CLI 查看原因和本地日志。' }
     if ($Text.Trim()) { return ($Text | ConvertFrom-Json) }
 }
-function Show-Result([scriptblock]$Operation) {
-    try { $Result=& $Operation; [System.Windows.Forms.MessageBox]::Show(($Result | ConvertTo-Json -Depth 6),'SunMoon') | Out-Null }
-    catch { [System.Windows.Forms.MessageBox]::Show($_.Exception.Message,'SunMoon') | Out-Null }
-}
+# 托盘只看得到本地 link 这一端连没连着会合点；沙箱那一端和配对成功没有，在网页设置「电脑与沙箱」里看（会合点备忘第四、十节）。
 function Get-ConnectionText($Current) {
-    if (-not $Current) { return '已停止' }
+    if (-not $Current) { return '本地 link 没在运行' }
     if (-not $Current.running) {
-        if ($Current.relay.status -eq 'rejected') { return '连接被拒绝，代理已停止' }
-        return '已停止或状态过期'
+        if ($Current.relay.status -eq 'rejected') { return '本地 link 没连着：被拒绝，已退出' }
+        return '本地 link 没在运行或状态过期'
     }
     switch ([string]$Current.relay.status) {
-        'connected' { return '在线' }
-        'connecting' { return '正在连接' }
-        'rejected' { return '连接被拒绝' }
-        default { return '离线，等待重连' }
+        'connected' { return '本地 link 连着' }
+        'connecting' { return '本地 link 正在连接' }
+        'rejected' { return '本地 link 没连着：被拒绝' }
+        default { return '本地 link 没连着，等待重连' }
     }
 }
 function Show-Status {
     try {
         $Current=Invoke-Agent @('status')
-        $Reason=if($Current.relay.lastError){[string]$Current.relay.lastError}elseif($Current.relay.lastNotice){[string]$Current.relay.lastNotice}elseif($Current.running){'无连接错误'}else{'代理未运行；可从托盘启动'}
+        $Reason=if($Current.relay.lastError){[string]$Current.relay.lastError}elseif($Current.relay.lastNotice){[string]$Current.relay.lastNotice}elseif($Current.running){'无连接错误'}else{'本地 link 没在运行；从开始菜单打开 SunMoon link'}
         $Text='状态：'+(Get-ConnectionText $Current)+"`r`n`r`n原因："+$Reason
         if($Current.relay.lastNotice -and $Current.relay.lastNotice -ne $Reason){$Text+="`r`n提示："+[string]$Current.relay.lastNotice}
         if($Current.execServer.windowsSandbox.mode){$Text+="`r`n`r`n沙箱模式："+[string]$Current.execServer.windowsSandbox.mode}
         if($Current.at){$Text+="`r`n状态更新时间："+[string]$Current.at}
-    } catch {$Text='无法读取代理状态，请查看本机日志。'}
+    } catch {$Text='无法读取本地 link 的状态，请查看本机日志。'}
     try {
         $Page=Invoke-Agent @('pair-page-status')
         if($Page.active){
-            $Text+="`r`n`r`n本机接入页："+[string]$Page.url
-            if($Page.user_code){$Text+="`r`n连接码："+[string]$Page.user_code}
+            $Text+="`r`n`r`n本机颁发令牌页："+[string]$Page.url
+            if($Page.user_code){$Text+="`r`n确认码："+[string]$Page.user_code}
             $Text+="`r`n网站页会自动填码；没打开就复制上面的地址到浏览器"
             if($Page.message){$Text+="`r`n"+[string]$Page.message}
         }
     } catch {}
-    $Dialog=New-Object System.Windows.Forms.Form; $Dialog.Text='SunMoon - 连接状态'; $Dialog.Size=New-Object System.Drawing.Size(700,400); $Dialog.StartPosition='CenterScreen'
+    $Dialog=New-Object System.Windows.Forms.Form; $Dialog.Text='SunMoon - 状态与原因'; $Dialog.Size=New-Object System.Drawing.Size(700,400); $Dialog.StartPosition='CenterScreen'
     $StatusText=New-Object System.Windows.Forms.TextBox; $StatusText.Multiline=$true; $StatusText.ReadOnly=$true; $StatusText.ScrollBars='Vertical'; $StatusText.SetBounds(15,15,650,285); $StatusText.Text=$Text
     $Close=New-Object System.Windows.Forms.Button; $Close.Text='关闭'; $Close.SetBounds(545,310,120,30); $Close.Add_Click({$Dialog.Close()}); $Dialog.CancelButton=$Close
     $Dialog.Controls.AddRange(@($StatusText,$Close)); Initialize-VisibleForm $Dialog
@@ -206,8 +203,8 @@ function Show-Status {
 }
 function Show-Preferences {
     $Prefs=Invoke-Agent @('settings','show')
-    $Dialog=New-Object System.Windows.Forms.Form; $Dialog.Text='SunMoon - 本机设置'; $Dialog.Size=New-Object System.Drawing.Size(700,610); $Dialog.StartPosition='CenterScreen'
-    $NameLabel=New-Object System.Windows.Forms.Label; $NameLabel.Text='机器名称'; $NameLabel.SetBounds(15,15,100,24)
+    $Dialog=New-Object System.Windows.Forms.Form; $Dialog.Text='SunMoon - 这台电脑上的设置'; $Dialog.Size=New-Object System.Drawing.Size(700,610); $Dialog.StartPosition='CenterScreen'
+    $NameLabel=New-Object System.Windows.Forms.Label; $NameLabel.Text='电脑名'; $NameLabel.SetBounds(15,15,100,24)
     $Name=New-Object System.Windows.Forms.TextBox; $Name.Text=$Prefs.machineName; $Name.SetBounds(120,15,500,26)
     $RootLabel=New-Object System.Windows.Forms.Label; $RootLabel.Text='勾选允许访问的目录；未勾选的目录只记住位置，不授予访问权限。'; $RootLabel.SetBounds(15,52,650,26)
     $Roots=New-Object System.Windows.Forms.CheckedListBox; $Roots.Name='DirectoryChoices'; $Roots.AccessibleName='允许访问的目录'; $Roots.CheckOnClick=$true; $Roots.HorizontalScrollbar=$true; $Roots.SetBounds(15,82,650,170)
@@ -226,19 +223,26 @@ function Show-Preferences {
     $PickLibrary.Add_Click({ $Picker=New-Object System.Windows.Forms.FolderBrowserDialog; try { if($Picker.ShowDialog() -eq 'OK'){$Library.Text=$Picker.SelectedPath} } finally{$Picker.Dispose()} })
     $ClearLibrary.Add_Click({$Library.Clear()})
     $LibraryNote=New-Object System.Windows.Forms.Label; $LibraryNote.Text='知识库目录仅供读取，不授予工作区写入权限。'; $LibraryNote.SetBounds(150,382,515,26)
-    $NoteText='保存后需停止并重新启动代理才生效。全部取消勾选可关闭项目目录访问；临时批准在断开时失效。'
+    # 登录时自动运行：和网页设置「电脑与沙箱」里的是同一个开关（Windows 任务计划程序的登录任务）
+    $AutoRun=New-Object System.Windows.Forms.CheckBox; $AutoRun.Name='RunAtLogon'; $AutoRun.Text='登录时自动运行'; $AutoRun.SetBounds(15,415,650,28)
+    $AutoWas=$false
+    try { $AutoWas=[bool](Invoke-Agent @('autostart','status')).enabled; $AutoRun.Checked=$AutoWas } catch { $AutoRun.Enabled=$false }
+    $NoteText='保存后本地 link 会自己重启生效。全部取消勾选可关闭项目目录访问；临时批准在断开时失效。'
     try { $Current=Invoke-Agent @('status'); if($Current.relay.lastError){$NoteText+="`r`n"+[string]$Current.relay.lastError} } catch {}
-    $Note=New-Object System.Windows.Forms.Label; $Note.Text=$NoteText; $Note.SetBounds(15,420,650,55)
-    $Save=New-Object System.Windows.Forms.Button; $Save.Name='SaveSettings'; $Save.Text='保存设置'; $Save.SetBounds(405,505,120,30)
-    $Cancel=New-Object System.Windows.Forms.Button; $Cancel.Text='取消'; $Cancel.SetBounds(545,505,120,30)
+    $Note=New-Object System.Windows.Forms.Label; $Note.Text=$NoteText; $Note.SetBounds(15,450,650,55)
+    $Save=New-Object System.Windows.Forms.Button; $Save.Name='SaveSettings'; $Save.Text='保存设置'; $Save.SetBounds(405,515,120,30)
+    $Cancel=New-Object System.Windows.Forms.Button; $Cancel.Text='取消'; $Cancel.SetBounds(545,515,120,30)
     $Save.Add_Click({
         try {
             Invoke-Agent @('settings','set') @{machineName=$Name.Text; roots=@($Roots.CheckedItems | ForEach-Object{[string]$_}); rootChoices=@($Roots.Items | ForEach-Object{[string]$_}); ceiling=@{sandbox=[string]$Mode.SelectedItem; network=[bool]$Network.Checked}; libraryDir=$(if($Library.Text){$Library.Text}else{$null})} | Out-Null
-            [System.Windows.Forms.MessageBox]::Show('已保存。请在托盘中停止、再启动代理使设置生效。','SunMoon')|Out-Null; $Dialog.Close()
+            if ($AutoRun.Enabled -and $AutoRun.Checked -ne $AutoWas) { Invoke-Agent @('autostart',$(if($AutoRun.Checked){'enable'}else{'disable'})) | Out-Null }
+            # 和从网页改设置一样，保存后本地 link 自己重启，不要用户手动停再启（会合点备忘第十节）
+            Invoke-Agent @('restart-resident') | Out-Null
+            [System.Windows.Forms.MessageBox]::Show('已保存，本地 link 已重启生效。','SunMoon')|Out-Null; $Dialog.Close()
         } catch { [System.Windows.Forms.MessageBox]::Show($_.Exception.Message,'SunMoon')|Out-Null }
     })
     $Cancel.Add_Click({$Dialog.Close()}); $Dialog.CancelButton=$Cancel
-    $Dialog.Controls.AddRange(@($NameLabel,$Name,$RootLabel,$Roots,$Add,$Remove,$Mode,$Network,$LibraryLabel,$Library,$PickLibrary,$ClearLibrary,$LibraryNote,$Note,$Save,$Cancel))
+    $Dialog.Controls.AddRange(@($NameLabel,$Name,$RootLabel,$Roots,$Add,$Remove,$Mode,$Network,$LibraryLabel,$Library,$PickLibrary,$ClearLibrary,$LibraryNote,$AutoRun,$Note,$Save,$Cancel))
     Initialize-VisibleForm $Dialog
     $Watch = New-FormWatchdog $Dialog
     try{$Watch.Start(); $Dialog.ShowDialog()|Out-Null}finally{$Watch.Stop(); $Watch.Dispose(); $Dialog.Dispose()}
@@ -253,22 +257,24 @@ if (-not $Mutex.WaitOne(0,$false)) { $Mutex.Dispose(); exit 0 }
 # closing a preferences dialog normally does not close the tray.
 $TrayForm=New-Object System.Windows.Forms.Form
 $Watch=New-FormWatchdog $TrayForm
-$Tray=New-Object System.Windows.Forms.NotifyIcon; $Tray.Icon=[System.Drawing.SystemIcons]::Application; $Tray.Text='SunMoon Agent'; $Tray.Visible=$true
+$Tray=New-Object System.Windows.Forms.NotifyIcon; $Tray.Icon=[System.Drawing.SystemIcons]::Application; $Tray.Text='SunMoon link'; $Tray.Visible=$true
 $Menu=New-Object System.Windows.Forms.ContextMenuStrip
 $Connection=$Menu.Items.Add('状态：正在读取'); $Connection.Enabled=$false
 $Status=$Menu.Items.Add('查看状态与原因'); $Status.Add_Click({ Show-Status })
 $Tray.Add_DoubleClick({Show-Status})
-$Start=$Menu.Items.Add('启动代理'); $Start.Add_Click({ Show-Result { Invoke-Agent @('start','--background') } })
-$Stop=$Menu.Items.Add('停止代理'); $Stop.Add_Click({ Show-Result { Invoke-Agent @('stop') } })
-$Preferences=$Menu.Items.Add('白名单与上限设置'); $Preferences.Add_Click({ try{Show-Preferences}catch{[System.Windows.Forms.MessageBox]::Show($_.Exception.Message,'SunMoon')|Out-Null} })
-$Reconnect=$Menu.Items.Add('重新连接账号'); $Reconnect.Add_Click({
+# 五项（会合点备忘第十节）：不设启动 / 停止、暂停 / 继续；不让云端碰这台电脑靠白名单与上限，真要断开就退出 link，
+# 退出后从开始菜单打开就是重启。登录时自动运行在「这台电脑上的设置」里勾。
+$Preferences=$Menu.Items.Add('这台电脑上的设置'); $Preferences.Add_Click({ try{Show-Preferences}catch{[System.Windows.Forms.MessageBox]::Show($_.Exception.Message,'SunMoon')|Out-Null} })
+$Reissue=$Menu.Items.Add('重新颁发令牌'); $Reissue.Add_Click({
     try{$PageProcess=New-AgentProcess @('pair','--page') $true; $PageProcess.Dispose()}
-    catch{[System.Windows.Forms.MessageBox]::Show('本机接入页未打开，请查看连接状态。','SunMoon')|Out-Null}
+    catch{[System.Windows.Forms.MessageBox]::Show('本机颁发令牌页未打开，请查看状态与原因。','SunMoon')|Out-Null}
 })
-$Enable=$Menu.Items.Add('启用登录自启'); $Enable.Add_Click({ Show-Result { Invoke-Agent @('autostart','enable') } })
-$Disable=$Menu.Items.Add('关闭登录自启'); $Disable.Add_Click({ Show-Result { Invoke-Agent @('autostart','disable') } })
 $Menu.Items.Add('-')|Out-Null
-$Exit=$Menu.Items.Add('退出托盘（代理继续运行）'); $Exit.Add_Click({[System.Windows.Forms.Application]::Exit()})
+# 对用户来说托盘和本地 link 是一个东西：退出就一起退出，不留一个看不见的本地 link 在后台
+$Exit=$Menu.Items.Add('退出 link'); $Exit.Add_Click({
+    try { Invoke-Agent @('stop') | Out-Null } catch { [System.Windows.Forms.MessageBox]::Show($_.Exception.Message,'SunMoon')|Out-Null; return }
+    [System.Windows.Forms.Application]::Exit()
+})
 $Tray.ContextMenuStrip=$Menu
 $TrayId=[Guid]::NewGuid().ToString()
 $TrayStatus=Join-Path $State 'tray.json'; $TrayStop=Join-Path $State 'tray-stop.json'
@@ -289,11 +295,11 @@ $Timer.Add_Tick({
             $Age=((Get-Date).ToUniversalTime()-[DateTime]::Parse($Current.at).ToUniversalTime()).TotalSeconds
             $Current|Add-Member -NotePropertyName running -NotePropertyValue ($Age -ge -2 -and $Age -lt 15) -Force
             $Label=Get-ConnectionText $Current
-            $Tip='SunMoon: '+$Label; if($Tip.Length -gt 63){$Tip=$Tip.Substring(0,63)}
+            $Tip='SunMoon link: '+$Label; if($Tip.Length -gt 63){$Tip=$Tip.Substring(0,63)}
             $Tray.Text=$Tip
             if($Current.relay.lastError){$Connection.Text=[string]$Current.relay.lastError}else{$Connection.Text='状态：'+$Label}
-        } else {$Tray.Text='SunMoon: 已停止';$Connection.Text='状态：已停止'}
-    } catch {$Tray.Text='SunMoon: 状态暂不可读';$Connection.Text='状态：暂不可读'}
+        } else {$Tray.Text='SunMoon link: 没在运行';$Connection.Text='状态：本地 link 没在运行'}
+    } catch {$Tray.Text='SunMoon link: 状态暂不可读';$Connection.Text='状态：暂不可读'}
 })
 $Watch.Start(); $Timer.Start()
 try {[System.Windows.Forms.Application]::Run()}

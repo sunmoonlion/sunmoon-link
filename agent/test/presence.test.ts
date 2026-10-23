@@ -44,6 +44,18 @@ describe("loopback presence endpoint", () => {
     } finally { await endpoint!.close(); }
   });
 
+  it("adds device id, host, os and link state when given, never the account (ledger 143)", async () => {
+    let state = "token_invalid";
+    const endpoint = await startPresence({ webOrigin: origin, version: "0.5.1", machineName: "my-pc", connected: () => false, ports: [0],
+      identity: () => ({ deviceId: "0f8fad5b-d9cb-469f-a165-70867728950e", host: "DESKTOP-1", os: "Windows" }), linkState: () => state });
+    try {
+      const body = JSON.parse((await request(endpoint!.port, "/presence", "GET", { Origin: origin })).body);
+      expect(body).toEqual({ agent: "sunmoon-agent", version: "0.5.1", machine_name: "my-pc", connected: false, device_id: "0f8fad5b-d9cb-469f-a165-70867728950e", host: "DESKTOP-1", os: "Windows", link_state: "token_invalid" });
+      state = "connected";
+      expect(JSON.parse((await request(endpoint!.port, "/presence", "GET", { Origin: origin })).body).link_state).toBe("connected");
+    } finally { await endpoint!.close(); }
+  });
+
   it("requires the exact Origin and emits no CORS headers for missing or wrong origins", async () => {
     const endpoint = await startPresence({ webOrigin: origin, version: "0.3.1", machineName: "my-pc", connected: () => false, ports: [0] });
     try {

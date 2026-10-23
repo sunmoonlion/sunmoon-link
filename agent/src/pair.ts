@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import path from "node:path";
-import { CONFIG_PATH, defaultConfig, loadConfig, saveConfig, type AgentConfig } from "./config.js";
+import { CONFIG_PATH, defaultConfig, ensureDeviceId, loadConfig, saveConfig, type AgentConfig } from "./config.js";
 import { registerSecret } from "./log.js";
 import { installedSite } from "./siteTrust.js";
 
@@ -100,7 +100,7 @@ export async function runPair(opts: PairRunOptions): Promise<number> {
   registerSecret(secret);
   const machineName = printable(opts.machineName, 128, "电脑名称");
   const osName = printable(opts.osName, 64, "系统");
-  const agentVersion = printable(opts.agentVersion, 64, "代理版本");
+  const agentVersion = printable(opts.agentVersion, 64, "本地 link 版本");
   const codexVersion = printable(opts.codexVersion, 64, "Codex 版本");
   const created = await opts.post(endpoint(opts.webOrigin, "/api/agent-pairing/requests"), {
     machine_name: machineName,
@@ -141,14 +141,14 @@ export async function runPair(opts: PairRunOptions): Promise<number> {
     if (polled.status !== 200) return fail(opts, "not-found: 连接没有完成，请重新获取。");
     const body = polled.body as Record<string, unknown>;
     if (body.status === "pending") continue;
-    if (body.status === "expired") return done(opts, PAIR_EXIT.expired, "expired: 连接码已过期，请重新获取。");
-    if (body.status === "denied") return done(opts, PAIR_EXIT.denied, "denied: 连接码已被拒绝，请重新获取。");
+    if (body.status === "expired") return done(opts, PAIR_EXIT.expired, "expired: 确认码已过期，请重新获取。");
+    if (body.status === "denied") return done(opts, PAIR_EXIT.denied, "denied: 确认码已被拒绝，请重新获取。");
     if (body.status === "cancelled") return done(opts, PAIR_EXIT.cancelled, "cancelled: 已取消连接。");
-    if (body.status === "delivered") return fail(opts, "delivered: 连接码已经用过，请重新获取。");
+    if (body.status === "delivered") return fail(opts, "delivered: 确认码已经用过，请重新获取。");
     if (body.status === "approved") return await accept(opts, body);
     return fail(opts, "not-found: 连接没有完成，请重新获取。");
   }
-  return done(opts, PAIR_EXIT.expired, "expired: 连接码已过期，请重新获取。");
+  return done(opts, PAIR_EXIT.expired, "expired: 确认码已过期，请重新获取。");
 }
 
 async function accept(opts: PairRunOptions, body: Record<string, unknown>): Promise<number> {
@@ -167,6 +167,7 @@ async function accept(opts: PairRunOptions, body: Record<string, unknown>): Prom
   cfg.relayUrl = relayUrl;
   cfg.userId = relayUser;
   cfg.token = token;
+  ensureDeviceId(cfg);
   saveConfig(cfg, opts.configPath);
   say(opts.stdout, { event: "result", status: "approved", account: relayUser });
   // account 是用户可读标识，token 只进 config.json，不进呈现状态。

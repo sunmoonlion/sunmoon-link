@@ -61,7 +61,7 @@ export async function openPairPage():Promise<void>{
   let failed=false;child.once("error",()=>{failed=true;});child.unref();
   for(let n=0;n<100;n++){
     if(readPageDiscovery())return;
-    if(failed||child.exitCode!==null)throw new Error("本机接入页未能启动，请查看代理日志。");
+    if(failed||child.exitCode!==null)throw new Error("本机颁发令牌页未能启动，请查看本地 link 的日志。");
     await new Promise(resolve=>setTimeout(resolve,100));
   }
   throw new Error("本机接入页启动超时，请查看托盘连接状态。");

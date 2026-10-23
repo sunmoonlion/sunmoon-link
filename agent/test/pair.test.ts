@@ -83,6 +83,7 @@ describe("pair", () => {
       expect(h.calls[1].body).toEqual({ device_secret: SECRET });
       expect(h.stopCount()).toBe(1);
       const saved = JSON.parse(readFileSync(h.configPath, "utf8"));
+      expect(saved.deviceId).toMatch(/^[0-9a-f-]{36}$/); // 账 143：颁发令牌时没有就生成，以后沿用
       expect(saved.token).toBe(TOKEN);
       expect(saved.userId).toBe("owner");
       expect(saved.relayUrl).toBe("wss://relay.example/relay");
@@ -134,9 +135,9 @@ describe("pair", () => {
   it("cancels without saving and reports expiry, denial and reuse", async () => {
     const cases: { replies: PairResponse[]; jump?: number; cancel?: boolean; code: number; text: string }[] = [
       { replies: [created, { status: 200, body: { status: "cancelled" } }], cancel: true, code: 6, text: "已取消连接" },
-      { replies: [created, { status: 200, body: { status: "pending" } }], jump: 300_000, code: 4, text: "连接码已过期" },
-      { replies: [created, { status: 200, body: { status: "denied" } }], code: 5, text: "连接码已被拒绝" },
-      { replies: [created, { status: 200, body: { status: "delivered" } }], code: 1, text: "连接码已经用过" },
+      { replies: [created, { status: 200, body: { status: "pending" } }], jump: 300_000, code: 4, text: "确认码已过期" },
+      { replies: [created, { status: 200, body: { status: "denied" } }], code: 5, text: "确认码已被拒绝" },
+      { replies: [created, { status: 200, body: { status: "delivered" } }], code: 1, text: "确认码已经用过" },
     ];
     for (const item of cases) {
       const h = harness(item.replies);

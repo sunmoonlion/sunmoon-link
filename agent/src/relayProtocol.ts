@@ -57,6 +57,11 @@ export interface MachineInfo {
   name: string;
   roots: string[];
   ceiling: { sandbox: string; network: boolean };
+  /** 设备编号（账 143）：工作台按它认「这台电脑上的这一份本地 link」，不按电脑名 */
+  device_id?: string;
+  /** 操作系统的主机名与系统：配置目录被整个拷到别的电脑时，编号会跟过去，靠这两样发现 */
+  host?: string;
+  os?: string;
 }
 
 export type ControlMessage =
