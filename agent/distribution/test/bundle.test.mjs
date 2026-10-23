@@ -368,16 +368,16 @@ test('install script upgrades either installed shape without an overwrite switch
   assert.equal(text.includes('--remove-config'), false);
   assert.equal(text.includes('ExecutionPolicy'), false);
   assert.match(text, /安装目录还在，没有覆盖已有安装/);
-  assert.match(text, /SunMoon 代理/);
+  assert.match(text, /SunMoon link/);
   assert.match(text, /Test-Path -LiteralPath \$ConfigPath/);
   assert.match(text, /autostart enable/);
-  assert.match(text, /还没接入过的电脑会自动打开浏览器接入页；已经接入过的直接用托盘/);
+  assert.match(text, /还没颁发过令牌的电脑会自动打开浏览器颁发令牌页；已经颁发过的直接用托盘/);
   const desktop = fs.readFileSync(fileURLToPath(new URL('../../native/desktop.ps1', import.meta.url)), 'utf8');
-  for (const label of ['重新连接账号', 'pair-page-status', '本机接入页', '连接码：']) {
+  for (const label of ['重新颁发令牌', 'pair-page-status', '本机颁发令牌页', '确认码：']) {
     assert.equal(desktop.includes(label), true, label);
   }
   const page=fs.readFileSync(new URL('../../src/pairPage.ts',import.meta.url),'utf8');
-  for(const label of ['不选的话工作和专家碰不到你的文件','开机自动运行已打开','已在线','重新获取'])assert.ok(page.includes(label),label);
+  for(const label of ['不选的话工作和专家碰不到你的文件','登录时自动运行已打开','已在线','重新获取'])assert.ok(page.includes(label),label);
   // No runspace callbacks or pairing state files remain in the desktop process.
   for (const banned of ['add_OutputDataReceived', 'add_ErrorDataReceived', 'BeginOutputReadLine', 'BeginErrorReadLine']) {
     assert.equal(desktop.includes(banned), false, banned);

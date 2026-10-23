@@ -46,12 +46,15 @@ function Save-Package {
 function New-StartMenuShortcut {
     $Programs = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
     $Shell = New-Object -ComObject WScript.Shell
-    $Link = $Shell.CreateShortcut((Join-Path $Programs 'SunMoon 代理.lnk'))
+    # 0.5.2 起入口叫 SunMoon link（界面上不再说「代理」）；旧名字的入口删掉，免得开始菜单里有两个
+    $Legacy = Join-Path $Programs 'SunMoon 代理.lnk'
+    if (Test-Path -LiteralPath $Legacy) { Remove-Item -LiteralPath $Legacy }
+    $Link = $Shell.CreateShortcut((Join-Path $Programs 'SunMoon link.lnk'))
     $Link.TargetPath = Join-Path $Dest 'sunmoon-link.cmd'
     $Link.Arguments = 'menu'
     $Link.WorkingDirectory = $Dest
     $Link.WindowStyle = 7
-    $Link.Description = 'SunMoon 代理'
+    $Link.Description = 'SunMoon link'
     $Link.Save()
 }
 
@@ -61,21 +64,21 @@ function Remove-LegacyAgent {
     $Legacy = $LegacyJson | ConvertFrom-Json
     if ($Legacy.action -eq 'repair') {
         & $Node (Join-Path $Expanded 'installer\uninstall.mjs') --apply --legacy --stop-only --manifest-sha256 $ManifestSha256
-        if ($LASTEXITCODE -ne 0) { throw '旧名字的代理还有进程没退出，没有移动旧目录。' }
+        if ($LASTEXITCODE -ne 0) { throw '旧名字（sunmoon-agent）的程序还有进程没退出，没有移动旧目录。' }
         $Broken = $LegacyDest + '.broken-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ') + '-' + [guid]::NewGuid().ToString('n').Substring(0,8)
         [System.IO.Directory]::Move($LegacyDest,$Broken)
     } elseif ($Legacy.installedManifestSha256) {
         & $Node (Join-Path $Expanded 'installer\uninstall.mjs') --apply --legacy --manifest-sha256 $ManifestSha256 --installed-manifest-sha256 $Legacy.installedManifestSha256
-        if ($LASTEXITCODE -ne 0) { throw '旧名字（sunmoon-agent）的代理没有卸下来，新版本没有安装。' }
+        if ($LASTEXITCODE -ne 0) { throw '旧名字（sunmoon-agent）的程序没有卸下来，新版本没有安装。' }
     } else { throw '无法识别旧名字的安装，没有改动。' }
-    Write-Output '已卸下旧名字（sunmoon-agent）的代理与它的登录自启；旧配置 .sunmoon-agent 保留未删。改名后要重新接入一次。'
+    Write-Output '已卸下旧名字（sunmoon-agent）的程序与它的登录自启；旧配置 .sunmoon-agent 保留未删。改名后要重新颁发一次令牌。'
 }
 
 function Show-AgentWindow {
     New-StartMenuShortcut
     & (Join-Path $Dest 'sunmoon-link.cmd') menu
     if ($LASTEXITCODE -ne 0) { throw '窗口没有打开。' }
-    Write-Output ('已准备 SunMoon 代理 ' + $Version + '（Codex ' + $CodexVersion + '）。还没接入过的电脑会自动打开浏览器接入页；已经接入过的直接用托盘，不再开页。')
+    Write-Output ('已准备 SunMoon link ' + $Version + '（Codex ' + $CodexVersion + '）。还没颁发过令牌的电脑会自动打开浏览器颁发令牌页；已经颁发过的直接用托盘，不再开页。')
 }
 
 try {

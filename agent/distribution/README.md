@@ -21,11 +21,11 @@ Get-FileHash .\bundle-manifest.json -Algorithm SHA256
 **0.5.0 起改名**（0.5.0 之前叫 sunmoon-agent，2026-10-16 决定、0028 R5 发版）：网页安装脚本发现旧的 `%LOCALAPPDATA%\Programs\sunmoon-agent` 时，先用新包自带的 `uninstall.mjs --legacy` 卸下它（按旧安装自己的清单校验后才删；关掉它的登录自启 `SunMoonAgent-*`、停托盘与后台），旧配置 `%USERPROFILE%\.sunmoon-agent` 与旧日志保留不删；新版用新的配置目录 `.sunmoon-link`，要重新接入一次（改名后的工作台从空库起，不认旧的配对与凭据）。环境变量名 `SUNMOON_AGENT_HOME`、本机接口与握手里的 `agent` 字段属于内部命名与协议，不改。
 不自启、不提权、不设置全局 PATH。已存在目标或安装中断标记均停止，不能覆盖未知文件。
 之后从**安装目录**执行 `sunmoon-link.cmd menu`，或使用网页安装脚本创建的开始菜单入口。
-无令牌时 Node 开出本机浏览器页：显示连接码和倒计时，自动打开站点核对页。
+无令牌时 Node 开出本机浏览器页（颁发令牌）：显示确认码和倒计时，自动打开站点核对页。
 在站点页亲手输入本机显示的码、确认账号并允许；令牌只由代理 TLS 轮询取得并写入私有配置。
 允许后默认开启当前用户登录任务、启动后台；本机页显示「已在线」后可点完成。
-目录权限仍需在托盘「白名单与上限设置」选择；首次未选目录时不允许访问项目文件。
-已有令牌时入口启动后台并打开托盘，不再出现配对向导。重新连接账号会轮换令牌，旧代理会断开。
+目录权限仍需在托盘「这台电脑上的设置」选择；首次未选目录时不允许访问项目文件。
+已有令牌时入口启动后台并打开托盘，不再出现颁发令牌页。「重新颁发令牌」会换一对新令牌，旧的本地 link 会断开。
 
 `install.cmd` 是离线交付的安装器，只负责安装；网页的 `install.ps1` 编排下载、升级和 `menu`。
 不要把安装器的退出成功当作真实配对及在线验收通过。
@@ -53,11 +53,11 @@ Get-FileHash .\bundle-manifest.json -Algorithm SHA256
 | --- | --- | --- |
 | 启动 | `sunmoon-link.cmd start --background` | 单实例、隐藏后台；重复启动不会多开 |
 | 看状态 | `sunmoon-link.cmd status` | running、relay 状态及原因；成功查询退出 0，是否运行看 running |
-| 托盘 | `sunmoon-link.cmd tray` | 查看连接原因、启停、白名单、权限、自启 |
-| 关闭界面 | 托盘“退出托盘”或 `tray stop` | 后台继续；不等于停止代理 |
+| 托盘 | `sunmoon-link.cmd tray` | 五项：状态、查看状态与原因、这台电脑上的设置、重新颁发令牌、退出 link |
+| 退出 | 托盘「退出 link」 | 本地 link 与托盘一起退出；从开始菜单打开即重启（`tray stop` 只关托盘，供卸载器用） |
 | 停止 | `sunmoon-link.cmd stop` | 匹配 PID 与本轮随机身份，正常清理执行进程，不杀未知进程 |
-| 自启开关 | `autostart enable / disable / status` | 当前用户登录任务，Limited、非管理员；配对成功后默认打开，可关闭 |
-| 配置 | 托盘“白名单与上限设置” | 逐项勾选目录、只读/工作区写入、网络开关；保存后 stop/start 生效 |
+| 自启开关 | 托盘「这台电脑上的设置」里的「登录时自动运行」，或 `autostart enable / disable / status` | 当前用户登录任务，Limited、非管理员；颁发令牌完成后默认打开，可关闭；和网页设置里是同一个开关 |
+| 配置 | 托盘「这台电脑上的设置」 | 电脑名、逐项勾选目录、只读/工作区写入、网络开关、本地知识库目录、登录时自动运行；保存后本地 link 自己重启生效 |
 | 前台诊断 | `sunmoon-link.cmd start` | 终端交互和日志；前台/后台共用单实例锁 |
 
 托盘与后台分离，登录任务用系统 wscript 隐藏启动二者，不弹控制台。
@@ -65,14 +65,14 @@ Get-FileHash .\bundle-manifest.json -Algorithm SHA256
 令牌吊销/被替换的退出不会触发任务自动重试；重新取得令牌是人工动作。
 自启任务的手动触发可以验证启动链，**不能代替整机重启验收**。
 
-托盘菜单直接显示在线、正在连接、离线或停止；双击图标或“查看状态与原因”查看
-最近连接错误和状态时间。超过 15 秒未更新的状态不会继续显示在线。
+托盘菜单直接显示本地 link 连着、正在连接、没连着或没在运行（只看得到本地 link 这一端；沙箱与配对成功没有在网页设置里看）；
+双击图标或「查看状态与原因」查看最近连接错误和状态时间。超过 15 秒未更新的状态不会继续显示连着。
 
 目录列表中，添加新目录只加入待选项，勾选后保存才进入白名单。取消勾选保留位置，
 下次可以重新选择；“移除选中行”删除待选项。可以全部取消，关闭所有项目目录访问。
 配置中的 `roots` 是唯一实际授权列表；`rootChoices` 只是本机界面记住的候选目录，
 不会作为执行器权限或上传配置。旧配置没有 `rootChoices` 时，以原 `roots` 初始化列表。
-保存后必须停止并重新启动代理，运行中的连接不会悄悄改变权限。
+保存后本地 link 自己重启（0.5.2 起，和从网页改设置一样），运行中的连接不会悄悄改变权限。
 
 ## 本机授权与边界
 
@@ -118,26 +118,34 @@ HTTP 只转发启动时本机确认过的完整 MCP URL，逐字匹配且禁止�
 
 ## 维护者组包与回归
 
-依赖必须由 pnpm **10.24.0**、`agent/pnpm-lock.yaml` 冻结安装在 Windows agent 目录。
-`agent/package.json` 固定 packageManager；不要用全局其它大版本隐式重装依赖。
-不下载、不执行 npm 生命周期、不复制用户配置。提交源码后从 runtime 根目录：
+**发 Windows 包只用这一条命令**（账 128，0.5.2 起；以前「复制上一次的冻结依赖目录再跑 build.mjs、手工打 zip」的做法作废）。
+提交源码后，在 WSL 或 Windows 上从仓库根目录：
 
 ```sh
-node agent/distribution/build.mjs \
+node agent/distribution/release-windows.mjs \
   --node-exe '/path/to/verified/node.exe' \
-  --dependencies '/path/to/windows-agent' \
   --site agent/distribution/sites/dev-kind.json \
   --ca-pem agent/distribution/sites/dev-kind-ca.pem \
-  --output '/path/to/new/delivery'
+  --out '/path/to/new/release-directory'
+```
+
+它依次：用 `git archive` 把 HEAD 的 `agent/` 导出到新目录 → 在那里按锁文件冻结安装 Windows 依赖（pnpm 10.24.0，
+`--frozen-lockfile --ignore-scripts --prod --os win32 --cpu x64`，Linux 上也装得出 Windows 平台包）→ 核 `@openai/codex` 与
+`@openai/codex-win32-x64` 都在 → `build.mjs` 组包（源码、版本、锁文件、Node 摘要、清单的检查照旧）→ 编码探针（含中文的 `.ps1`
+必须有 UTF-8 BOM、`.cmd`/`.vbs` 必须是 ASCII、每个 `.ps1` 在 Windows PowerShell 里解析 0 错误）→ 用包里的 `node.exe` 在 Windows 上
+跑 `test/windows-candidate.mjs` 自检（WSL 上先复制到 Windows 临时目录，过了就删）→ 打确定性 zip（`zip.mjs`：按名排序、时间固定为
+1980-01-01、无额外字段）→ 打印并写 `<名字>.receipt.json`（源码提交、清单与 zip 的 SHA256、大小、各项检查、打包机的 Node/zlib/pnpm 版本）。
+任何一步出错就停，工作目录留着排查；全过才删工作目录。同一提交、同一套工具打两次，zip 摘要相同。
+
+`build.mjs` 仍可单独跑（`--dependencies` 指向一份冻结安装的结果），只供排查；发版不用。回归：
+
+```sh
 pnpm --dir agent build
 pnpm --dir agent test
 node --test agent/distribution/test/bundle.test.mjs
 ```
 
 `--site` 必填。`ca_sha256` 由组包时对证书 DER 计算，不从配置文件读入。开发站点用上面两个文件；`bundled-ca` 必须再给 `--ca-pem`，`system` 不能带证书。
-
-源码候选版本现为 **0.3.0**。本轮不发布、不替换原装 0.2.7；网页托管版本由发布卡核实。
-最新验收与未完成项见 [0.3.0 回执](../../scripts/results/windows-agent-0.3.0-browser.20261012.md)。
 
 组包仅复制白名单生产文件、完整 Codex Windows 资源、固定依赖、许可证与入口。
 Node 版本/摘要来自已固定的官方物料；生成全文件 SHA256、固定源码提交和锁文件摘要。
@@ -146,10 +154,10 @@ Node/Codex LICENSE/NOTICE 存 `licenses/`，其余许可证随依赖。输出不
 ## 浏览器页与兜底排障
 
 `pair --page` 的 HTTP 服务只绑 127.0.0.1，随机端口和 32 字节随机路径，最长 30 分钟。
-浏览器打不开时，从托盘「查看状态与原因」复制本机页地址、查看连接码；控制台与本机日志也记录页地址。
+浏览器打不开时，从托盘「查看状态与原因」复制本机页地址、查看确认码；控制台与本机日志也记录页地址。
 配对进展只在 Node 内存；私有 `pair-page.json` 仅存 PID 和本机页地址，供托盘定位。它不含连接码或令牌。
 `pair-page-status` 输出该内存状态的安全投影，不能批准配对或权限申请。
-退出页面服务关闭端口并清理自己的定位文件。重复入口重用同一个页，不重复申请连接码。
+退出页面服务关闭端口并清理自己的定位文件。重复入口重用同一个页，不重复申请确认码。
 
 旧 `onboard-window`、PowerShell 配对向导和 `pair-status.json` 生产路径已经撤除。
 卸载器为旧版升级保留 `onboard-ready.json`、`pair-status.json` 的精确允许清单一版。

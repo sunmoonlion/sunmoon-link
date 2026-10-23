@@ -33,7 +33,7 @@ import { LocalFiles } from "./localFiles.js";
 import { killWindowsTree, WindowsFiles } from "./windowsRuntime.js";
 import { LocalProjects } from "./localProjects.js";
 
-const VERSION = "0.5.1";
+const VERSION = "0.5.2";
 const STATUS_PATH = path.join(CONFIG_DIR, "status.json");
 
 function arg(flag: string, argv: string[]): string | undefined {
