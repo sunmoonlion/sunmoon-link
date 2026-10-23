@@ -276,7 +276,7 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
   const relay = new RelayClient({
     windows: windows ? { ...windows, executorEnvironment: () => es.windowsEnv, confirmedHttpUrls: confirmedMcpUrls(mcpServers!) } : undefined, relayUrl: cfg.relayUrl, userId: cfg.userId, token: cfg.token, codexVersion: codex.version, softwareVersion: VERSION,
     localUrl: () => es.url, ceiling: () => cfg.ceiling, roots: () => cfg.roots, machineName: () => cfg.machineName, identity,
-    codexHome: cfg.codexHome, serviceRunsWritable, serviceProjects: projects,
+    codexHome: cfg.codexHome, serviceRunsWritable, serviceProjects: projects, serviceLibraryDir: () => cfg.libraryDir,
     onRejected: (reason) => onRejected(reason),
     confirmPermission: windows ? (windowed ? windowsConfirm : localConfirm) : undefined,
   });

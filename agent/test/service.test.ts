@@ -98,6 +98,25 @@ describe("service-v1 read boundary", () => {
   });
 });
 
+describe("local knowledge base through the service stream (SDD 0042)", () => {
+  it("reads the library read-only and says where it is; writes never reach it", async () => {
+    const library = path.join(base, "library"); fs.mkdirSync(library);
+    fs.writeFileSync(path.join(library, "年报.txt"), "营业收入");
+    const h = new ServiceHandler({ version: "0.5.3", roots: () => [root], libraryDir: () => library, configDir: path.join(base, "config"), codexHome: path.join(base, "home"), platform: "linux", runsWritable: true });
+    expect((await rpc("service/hello", undefined, h)).result.libraryDir).toBe(library);
+    const read = (await rpc("fs/readFile", { path: path.join(library, "年报.txt") }, h)).result;
+    expect(Buffer.from(read.content, "base64").toString()).toBe("营业收入");
+    expect((await rpc("fs/readDirectory", { path: library }, h)).result.entries.map((e: any) => e.name)).toEqual(["年报.txt"]);
+    // runs/ 只在项目目录下，本地知识库里建不了
+    const runs = await rpc("fs/createDirectory", { path: path.join(library, "runs", "r1") }, h);
+    expect(runs.error.code).toBe(-32010);
+    expect(fs.existsSync(path.join(library, "runs"))).toBe(false);
+    await h.close();
+    // 没设本地知识库：照旧读不到
+    expect((await rpc("fs/readFile", { path: path.join(library, "年报.txt") })).error.code).toBe(-32010);
+  });
+});
+
 describe("service-runs-v1 on the test computer (ledger 129)", () => {
   let runsHandler: ServiceHandler;
   const runs = () => path.join(root, "runs");

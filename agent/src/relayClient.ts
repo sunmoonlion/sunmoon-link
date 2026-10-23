@@ -36,6 +36,8 @@ export interface RelayClientOptions {
   serviceRunsWritable?: boolean;
   /** 远程登录 link 的电脑新建项目（账 165）：和回环口共用的那份 LocalProjects；不给就不开 */
   serviceProjects?: ServiceProjects;
+  /** Local knowledge base (SDD 0042): service-stream reads may cover it, read-only. */
+  serviceLibraryDir?: () => string | null | undefined;
   /** 控制通道的两个时限（毫秒）；测试才改。见 CONTROL_TIMING */
   timing?: { handshakeMs: number; heartbeatMs: number };
 }
@@ -253,9 +255,11 @@ export class RelayClient {
     }
     this.stats.service.connections++; this.stats.service.active++;
     const w = this.opts.windows;
+    const library = this.opts.serviceLibraryDir?.();
     const handler = new ServiceHandler({ version: this.opts.softwareVersion, roots: this.opts.roots, runsWritable: this.opts.serviceRunsWritable, projects: this.opts.serviceProjects,
+      libraryDir: this.opts.serviceLibraryDir,
       configDir: CONFIG_DIR, codexHome: w?.home ?? this.opts.codexHome ?? CONFIG_DIR,
-      files: w ? new WindowsFiles({ url: this.opts.localUrl, home: w.home, roots: this.opts.roots(), mode: w.mode,
+      files: w ? new WindowsFiles({ url: this.opts.localUrl, home: w.home, roots: [...this.opts.roots(), ...(library ? [library] : [])], mode: w.mode,
         writable: false, helper: w.helper, temporary: w.temporary.directory }) : undefined,
       onRequest: (method, code) => {
         this.stats.service.requests++;

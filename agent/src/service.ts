@@ -3,6 +3,8 @@
 // directories directly under <root>/runs/, so each knowlab test gets a clean folder. Users' links stay read-only.
 // New projects from a computer that is not this one (ledger 165): projects/folder and projects/clone go to the
 // same LocalProjects as the loopback API, with the same rules (only under the workspace roots, never config/library).
+// Reads also cover the local knowledge base (read-only; SDD 0042): the workbench reads files the user picked
+// for an expert there and checks their digest. Writes never reach it.
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -47,6 +49,8 @@ export interface ServiceOptions {
   runsWritable?: boolean;
   /** New projects (ledger 165): the LocalProjects the loopback API uses. Absent = methods not offered. */
   projects?: ServiceProjects;
+  /** Local knowledge base directory (SDD 0042): readable through fs/* reads, never writable. */
+  libraryDir?: () => string | null | undefined;
 }
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 const metadata = (s: fs.Stats) => ({ type: s.isSymbolicLink() ? "link" : s.isDirectory() ? "dir" : s.isFile() ? "file" : "other", size: s.size, mtime: Math.trunc(s.mtimeMs) });
@@ -109,7 +113,7 @@ export class ServiceHandler {
   private async dispatch(method: string, params: unknown): Promise<object> {
     if (method === "service/hello") {
       if (params !== undefined && (!object(params) || Object.keys(params).length)) throw new ServiceError(-32602);
-      return { agent: "sunmoon-agent", version: this.opts.version, roots: [...this.opts.roots()], libraryDir: null, capabilities: [SERVICE_CAPABILITY, ...(this.runsWritable ? [SERVICE_RUNS_CAPABILITY] : []), ...(this.opts.projects ? [SERVICE_PROJECTS_CAPABILITY] : [])] };
+      return { agent: "sunmoon-agent", version: this.opts.version, roots: [...this.opts.roots()], libraryDir: this.opts.libraryDir?.() ?? null, capabilities: [SERVICE_CAPABILITY, ...(this.runsWritable ? [SERVICE_RUNS_CAPABILITY] : []), ...(this.opts.projects ? [SERVICE_PROJECTS_CAPABILITY] : [])] };
     }
     if (PROJECTS.includes(method)) {
       if (!this.opts.projects) throw new ServiceError(-32601);
@@ -127,7 +131,9 @@ export class ServiceHandler {
       || Object.keys(params).some(k => !(method === "fs/readFile" ? ["path", "offset", "length"] : ["path"]).includes(k))) throw new ServiceError(-32602);
     const target = params.path;
     const normalized = canonicalPath(target, this.platform);
-    if (!normalized || !isUnderAny(target, this.opts.roots(), this.platform)
+    const library = this.opts.libraryDir?.();
+    const readable = [...this.opts.roots(), ...(library ? [library] : [])];
+    if (!normalized || !isUnderAny(target, readable, this.platform)
       || isUnderAny(target, [this.opts.configDir, this.opts.codexHome], this.platform)
       || normalized.split(this.platform === "win32" ? "\\" : "/").some(bit => ["auth.json", ".sandbox-secrets"].includes(bit))) throw new ServiceError(-32010);
     const offset = params.offset ?? 0, length = params.length ?? SERVICE_MAX_READ;
