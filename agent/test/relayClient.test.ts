@@ -88,7 +88,7 @@ describe("RelayClient", () => {
     await connected();
     const wb = await relay.connectSandbox("service");
     const response = nextMessage(wb); wb.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "service/hello" }));
-    expect(await response).toEqual({ jsonrpc: "2.0", id: 1, result: { agent: "sunmoon-agent", version: "test", roots: [ROOT], libraryDir: null, capabilities: ["service-v1"] } });
+    expect(await response).toEqual({ jsonrpc: "2.0", id: 1, result: { agent: "sunmoon-agent", version: "test", roots: [ROOT], libraryDir: null, capabilities: ["service-v1", "service-digest-v1"] } });
     expect(es.connections).toBe(0); expect(client.stats.connections).toBe(0);
     expect(client.stats.service).toMatchObject({ active: 1, requests: 1 });
     const denied = nextMessage(wb); wb.send(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "process/start", params: {} }));

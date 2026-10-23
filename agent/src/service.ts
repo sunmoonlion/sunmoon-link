@@ -4,7 +4,9 @@
 // New projects from a computer that is not this one (ledger 165): projects/folder and projects/clone go to the
 // same LocalProjects as the loopback API, with the same rules (only under the workspace roots, never config/library).
 // Reads also cover the local knowledge base (read-only; SDD 0042): the workbench reads files the user picked
-// for an expert there and checks their digest. Writes never reach it.
+// for an expert there and checks their digest. Writes never reach it. fs/digest hashes a whole file here, so
+// pinning a 50 MB file does not mean carrying it through the relay just to learn its sha256.
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -14,12 +16,13 @@ import { canonicalPath, isUnderAny } from "./pathuri.js";
 export const SERVICE_CAPABILITY = "service-v1";
 export const SERVICE_RUNS_CAPABILITY = "service-runs-v1";
 export const SERVICE_PROJECTS_CAPABILITY = "service-projects-v1";
+export const SERVICE_DIGEST_CAPABILITY = "service-digest-v1";
 /** projects/* refusals carry LocalProjects' code (auth_required, target_not_empty, …) as the message. */
 export const SERVICE_PROJECT_REFUSED = -32020;
 const PROJECTS = ["projects/folder", "projects/clone"];
 export const RUNS_DIR = "runs";
 const RUN_NAME = /^[A-Za-z0-9._-]{1,128}$/;
-const READS = ["fs/readDirectory", "fs/getMetadata", "fs/readFile"];
+const READS = ["fs/readDirectory", "fs/getMetadata", "fs/readFile", "fs/digest"];
 const WRITES = ["fs/createDirectory", "fs/remove"];
 export const SERVICE_MAX_FRAME = 1024 * 1024;
 export const SERVICE_MAX_READ = 512 * 1024;
@@ -113,7 +116,7 @@ export class ServiceHandler {
   private async dispatch(method: string, params: unknown): Promise<object> {
     if (method === "service/hello") {
       if (params !== undefined && (!object(params) || Object.keys(params).length)) throw new ServiceError(-32602);
-      return { agent: "sunmoon-agent", version: this.opts.version, roots: [...this.opts.roots()], libraryDir: this.opts.libraryDir?.() ?? null, capabilities: [SERVICE_CAPABILITY, ...(this.runsWritable ? [SERVICE_RUNS_CAPABILITY] : []), ...(this.opts.projects ? [SERVICE_PROJECTS_CAPABILITY] : [])] };
+      return { agent: "sunmoon-agent", version: this.opts.version, roots: [...this.opts.roots()], libraryDir: this.opts.libraryDir?.() ?? null, capabilities: [SERVICE_CAPABILITY, SERVICE_DIGEST_CAPABILITY, ...(this.runsWritable ? [SERVICE_RUNS_CAPABILITY] : []), ...(this.opts.projects ? [SERVICE_PROJECTS_CAPABILITY] : [])] };
     }
     if (PROJECTS.includes(method)) {
       if (!this.opts.projects) throw new ServiceError(-32601);
@@ -140,6 +143,7 @@ export class ServiceHandler {
     if (method === "fs/readFile" && (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(length) || length < 1 || length > SERVICE_MAX_READ)) throw new ServiceError(-32602);
     if (this.platform === "win32") {
       if (!this.opts.files) throw new ServiceError(-32010);
+      if (method === "fs/digest") return this.digestThroughHelper(pathToFileURL(target).href);
       // Only these locally selected read operations reach the existing sandboxed helper.
       const reply = await this.opts.files.call("service/" + method.slice(3), { path: pathToFileURL(target).href, ...(method === "fs/readFile" ? { offset, length } : {}) });
       if (reply.error) throw new ServiceError(reply.error.code === -32004 ? -32012 : [-32011, -32602].includes(reply.error.code) ? reply.error.code : -32010);
@@ -176,10 +180,36 @@ export class ServiceHandler {
       const named = fs.lstatSync(normalized);
       if (!opened.isFile() || opened.nlink !== 1 || opened.dev !== named.dev || opened.ino !== named.ino) throw new ServiceError(-32010);
       if (opened.size > MAX_FILE) throw new ServiceError(-32011);
+      if (method === "fs/digest") {
+        const hash = createHash("sha256"), chunk = Buffer.alloc(1024 * 1024);
+        let at = 0, n: number;
+        while ((n = fs.readSync(fd, chunk, 0, chunk.length, at)) > 0) { hash.update(chunk.subarray(0, n)); at += n; }
+        if (at !== opened.size) throw new ServiceError(-32010); // changed while hashing
+        return { size: opened.size, mtime: Math.trunc(opened.mtimeMs), sha256: hash.digest("hex") };
+      }
       const bytes = Buffer.alloc(Math.min(length, Math.max(0, opened.size - offset)));
       const n = fs.readSync(fd, bytes, 0, bytes.length, offset);
       return { content: bytes.subarray(0, n).toString("base64"), size: opened.size, mtime: Math.trunc(opened.mtimeMs), eof: offset + n >= opened.size };
     } finally { fs.closeSync(fd); }
+  }
+  /** Windows: the sandboxed helper reads; hash its blocks here. A file that changes size midway is refused. */
+  private async digestThroughHelper(uri: string): Promise<object> {
+    const hash = createHash("sha256");
+    let offset = 0, size = -1, mtime = 0;
+    for (;;) {
+      const reply = await this.opts.files!.call("service/readFile", { path: uri, offset, length: SERVICE_MAX_READ });
+      if (reply.error) throw new ServiceError(reply.error.code === -32004 ? -32012 : [-32011, -32602].includes(reply.error.code) ? reply.error.code : -32010);
+      const { content, size: now, mtime: stamp, eof } = reply.result ?? {};
+      if (typeof content !== "string" || !Number.isSafeInteger(now) || (size >= 0 && now !== size)) throw new ServiceError(-32010);
+      if (now > MAX_FILE) throw new ServiceError(-32011);
+      size = now; mtime = stamp;
+      const bytes = Buffer.from(content, "base64");
+      hash.update(bytes); offset += bytes.length;
+      if (eof || offset >= size) break;
+      if (!bytes.length) throw new ServiceError(-32010);
+    }
+    if (offset !== size) throw new ServiceError(-32010);
+    return { size, mtime: Math.trunc(mtime), sha256: hash.digest("hex") };
   }
   /** Only <root>/runs/<name>: create (making runs/ if missing) or remove recursively. Removing what is gone succeeds. */
   private writeRun(method: string, params: unknown): object {

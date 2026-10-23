@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -15,7 +16,7 @@ beforeEach(() => {
 afterEach(async () => { await handler.close(); fs.rmSync(base, { recursive: true, force: true }); });
 describe("service-v1 read boundary", () => {
   it("returns only the contracted hello and metadata fields", async () => {
-    expect((await rpc("service/hello")).result).toEqual({ agent: "sunmoon-agent", version: "0.4.0", roots: [root], libraryDir: null, capabilities: ["service-v1"] });
+    expect((await rpc("service/hello")).result).toEqual({ agent: "sunmoon-agent", version: "0.4.0", roots: [root], libraryDir: null, capabilities: ["service-v1", "service-digest-v1"] });
     fs.writeFileSync(path.join(root, "中文.txt"), "hello");
     expect((await rpc("fs/getMetadata", { path: path.join(root, "中文.txt") })).result).toEqual({ type: "file", size: 5, mtime: expect.any(Number) });
   });
@@ -117,14 +118,42 @@ describe("local knowledge base through the service stream (SDD 0042)", () => {
   });
 });
 
+describe("fs/digest: the link hashes a picked file (SDD 0042)", () => {
+  it("hashes a library file whole, under the same boundary as reads", async () => {
+    const library = path.join(base, "library"); fs.mkdirSync(library);
+    const body = Buffer.alloc(3 * 1024 * 1024 + 7, 7); fs.writeFileSync(path.join(library, "年报.pdf"), body);
+    const h = new ServiceHandler({ version: "0.5.3", roots: () => [root], libraryDir: () => library, configDir: path.join(base, "config"), codexHome: path.join(base, "home"), platform: "linux" });
+    const got = (await rpc("fs/digest", { path: path.join(library, "年报.pdf") }, h)).result;
+    expect(got).toEqual({ size: body.length, mtime: expect.any(Number), sha256: createHash("sha256").update(body).digest("hex") });
+    expect((await rpc("fs/digest", { path: path.join(base, "config", "x") }, h)).error.code).toBe(-32010);
+    expect((await rpc("fs/digest", { path: path.join(library, "absent") }, h)).error.code).toBe(-32012);
+    expect((await rpc("fs/digest", { path: path.join(library, "年报.pdf"), offset: 0 }, h)).error.code).toBe(-32602);
+    await h.close();
+  });
+  it("on Windows hashes the helper's blocks and refuses a file that changes midway", async () => {
+    const body = Buffer.alloc(SERVICE_MAX_READ * 2 + 3, 1);
+    const block = (offset: number, size = body.length) => ({ result: { content: body.subarray(offset, offset + SERVICE_MAX_READ).toString("base64"), size, mtime: 5, eof: offset + SERVICE_MAX_READ >= body.length } });
+    const call = vi.fn(async (_m: string, params: any) => block(params.offset)), close = vi.fn(async () => {});
+    const h = new ServiceHandler({ version: "test", platform: "win32", roots: () => ["C:\\Allowed"], configDir: "C:\\Agent", codexHome: "C:\\Agent\\home", files: { call, close } });
+    const got = (await rpc("fs/digest", { path: "C:\\Allowed\\a.pdf" }, h)).result;
+    expect(got).toEqual({ size: body.length, mtime: 5, sha256: createHash("sha256").update(body).digest("hex") });
+    expect(call.mock.calls.map(c => [c[0], (c[1] as any).offset])).toEqual([["service/readFile", 0], ["service/readFile", SERVICE_MAX_READ], ["service/readFile", SERVICE_MAX_READ * 2]]);
+    call.mockImplementation(async (_m: string, params: any) => block(params.offset, params.offset ? body.length + 1 : body.length));
+    expect((await rpc("fs/digest", { path: "C:\\Allowed\\a.pdf" }, h, 2)).error.code).toBe(-32010);
+    call.mockImplementation(async () => ({ error: { code: -32004 } }) as any);
+    expect((await rpc("fs/digest", { path: "C:\\Allowed\\a.pdf" }, h, 3)).error.code).toBe(-32012);
+    await h.close();
+  });
+});
+
 describe("service-runs-v1 on the test computer (ledger 129)", () => {
   let runsHandler: ServiceHandler;
   const runs = () => path.join(root, "runs");
   beforeEach(() => { runsHandler = new ServiceHandler({ version: "0.5.1", roots: () => [root], configDir: path.join(base, "config"), codexHome: path.join(base, "home"), platform: "linux", runsWritable: true }); });
   afterEach(async () => { await runsHandler.close(); });
   it("announces the capability only when switched on", async () => {
-    expect((await rpc("service/hello", undefined, runsHandler)).result.capabilities).toEqual(["service-v1", "service-runs-v1"]);
-    expect((await rpc("service/hello")).result.capabilities).toEqual(["service-v1"]);
+    expect((await rpc("service/hello", undefined, runsHandler)).result.capabilities).toEqual(["service-v1", "service-digest-v1", "service-runs-v1"]);
+    expect((await rpc("service/hello")).result.capabilities).toEqual(["service-v1", "service-digest-v1"]);
   });
   it("creates runs/<name> (and runs/ itself), idempotently, and removes it recursively", async () => {
     const mine = path.join(runs(), "20261023-abc");
@@ -160,7 +189,7 @@ describe("service-runs-v1 on the test computer (ledger 129)", () => {
   });
   it("stays off on Windows even when asked", async () => {
     const w = new ServiceHandler({ version: "0.5.1", roots: () => [root], configDir: path.join(base, "config"), codexHome: path.join(base, "home"), platform: "win32", runsWritable: true });
-    expect((await rpc("service/hello", undefined, w)).result.capabilities).toEqual(["service-v1"]);
+    expect((await rpc("service/hello", undefined, w)).result.capabilities).toEqual(["service-v1", "service-digest-v1"]);
     expect((await rpc("fs/createDirectory", { path: path.join(runs(), "x") }, w)).error.code).toBe(-32601);
     await w.close();
   });
@@ -179,8 +208,8 @@ describe("projects over the service stream (ledger 165)", () => {
       },
     };
     const h = new ServiceHandler({ version: "0.5.2", roots: () => [root], configDir: path.join(base, "config"), codexHome: path.join(base, "home"), platform: "linux", projects });
-    expect((await rpc("service/hello", undefined, h)).result.capabilities).toEqual(["service-v1", "service-projects-v1"]);
-    expect((await rpc("service/hello")).result.capabilities).toEqual(["service-v1"]);
+    expect((await rpc("service/hello", undefined, h)).result.capabilities).toEqual(["service-v1", "service-digest-v1", "service-projects-v1"]);
+    expect((await rpc("service/hello")).result.capabilities).toEqual(["service-v1", "service-digest-v1"]);
     expect((await rpc("projects/folder", { path: path.join(root, "p1") })).error.code).toBe(-32601);
     expect((await rpc("projects/folder", { path: path.join(root, "p1") }, h)).result).toEqual({ path: path.join(root, "p1"), created: true });
     const target = path.join(root, "repo");
