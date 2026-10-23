@@ -1,12 +1,14 @@
 // Capability discovery is a real process/start, not a config-file guess.
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
-import { CONFIG_PATH, saveConfig, type AgentConfig } from "./config.js";
+import { CONFIG_DIR, CONFIG_PATH, saveConfig, type AgentConfig } from "./config.js";
 import { log } from "./log.js";
 import { locateCodex } from "./paths.js";
 import { freeLoopbackPort, waitForPort } from "./execServer.js";
-import { assertWindowsHome, locateWindowsHelper, killWindowsTree, runSandboxProbe, windowsEnvironment, WindowsTemporary, type WindowsMode } from "./windowsRuntime.js";
+import { assertWindowsHome, locateWindowsHelper, killWindowsTree, runSandboxProbe, windowsEnvironment, WindowsTemporary, type WindowsHelper, type WindowsMode } from "./windowsRuntime.js";
+import { grantSandboxRead, sandboxReadTargets, type SandboxReadResult } from "./windowsSandboxRead.js";
 
 export interface WindowsCapability {
   mode: WindowsMode;
@@ -28,6 +30,14 @@ export async function ensureWindowsSandbox(
   return cfg.windowsSandbox;
 }
 
+/** 提权模式起命令前补授读：本地 link 自己的 node 与 app 目录、用户目录下 PATH 里的程序目录（见 windowsSandboxRead.ts）。 */
+export function prepareElevatedReads(home: string, helper: WindowsHelper, env: NodeJS.ProcessEnv = process.env): SandboxReadResult {
+  const targets = sandboxReadTargets({ profile: env.USERPROFILE ?? os.homedir(), programs: [path.dirname(helper.node), path.dirname(path.dirname(helper.script))], pathEnv: env.PATH ?? "", privateDirs: [home, CONFIG_DIR] });
+  const result = grantSandboxRead(targets);
+  log(result.failed.length ? "warn" : "info", "elevated sandbox read grants", { granted: result.granted.length, present: result.present.length, failed: result.failed });
+  return result;
+}
+
 export async function detectWindowsSandbox(home: string, roots: readonly string[]): Promise<WindowsCapability> {
   if (process.platform !== "win32") throw new Error("Windows capability probe must run natively");
   fs.mkdirSync(home, { recursive: true }); assertWindowsHome(home, roots);
@@ -45,6 +55,7 @@ export async function detectWindowsSandbox(home: string, roots: readonly string[
   try {
     if (!await waitForPort(port, 10000, () => !spawnFailed && child.exitCode === null)) throw new Error("Sandbox capability executor failed to start");
     const cwd = roots[0] ?? home;
+    if (elevatedSetupForHome) prepareElevatedReads(home, helper);
     // No automatic setup or elevation. An existing setup is usable only if an
     // actual process can be launched under it from THIS isolated CODEX_HOME.
     const elevatedUsable = elevatedSetupForHome && await runSandboxProbe(url, home, cwd, "elevated", temporary.directory).catch(() => false);

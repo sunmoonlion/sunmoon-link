@@ -56,6 +56,16 @@ describe("loopback presence endpoint", () => {
     } finally { await endpoint!.close(); }
   });
 
+  it("adds the Windows sandbox mode when known, so the web can ask to raise unelevated isolation", async () => {
+    let mode: "elevated" | "unelevated" | undefined;
+    const endpoint = await startPresence({ webOrigin: origin, version: "0.5.2", machineName: "my-pc", connected: () => true, ports: [0], windowsSandbox: () => mode });
+    try {
+      const read = async () => JSON.parse((await request(endpoint!.port, "/presence", "GET", { Origin: origin })).body);
+      expect("windows_sandbox" in await read()).toBe(false);
+      mode = "unelevated"; expect((await read()).windows_sandbox).toBe("unelevated");
+      mode = "elevated"; expect((await read()).windows_sandbox).toBe("elevated");
+    } finally { await endpoint!.close(); }
+  });
   it("requires the exact Origin and emits no CORS headers for missing or wrong origins", async () => {
     const endpoint = await startPresence({ webOrigin: origin, version: "0.3.1", machineName: "my-pc", connected: () => false, ports: [0] });
     try {

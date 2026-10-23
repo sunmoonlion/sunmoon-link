@@ -33,17 +33,31 @@ Get-FileHash .\bundle-manifest.json -Algorithm SHA256
 `init --token-prompt` 保留为排障入口：真正的本机终端隐藏输入，不进命令参数或历史；
 不能管道输入。日常使用上述浏览器配对，不需要复制令牌。
 
-`init` 会真实探测沙箱能力。普通用户默认 unelevated，无管理员也能使用。
-可选管理员沙箱入口在完成 init 且代理停止后使用：
+`init` 会真实探测沙箱能力。Codex 的 Windows 沙箱有两种模式（OpenAI 文档：提权模式是首选，普通模式是退路）：
+
+| 模式 | 命令以谁运行 | 白名单外 |
+| --- | --- | --- |
+| 提权（elevated） | Codex 建的独立沙箱账户（`CodexSandboxUsers` 组） | 写不进、删不掉 |
+| 普通（unelevated） | 用户自己的身份，只限写的令牌 | 写不进，**但能删**（Windows 不把删除算写；0.155.1 `token.rs` 的 `WRITE_RESTRICTED`） |
+
+没做过提权设置时用普通模式，无管理员也能用。托盘第一次看到是普通模式会问一次要不要提高（只问一次，记在
+控制目录的 `sandbox-offer.json`），以后在托盘「这台电脑上的设置」里点「提高安全」；网页顶上也会提示。
+提高的过程是托盘调 `sandbox-upgrade`：停下本地 link → 提权设置 → 再起来。也可以手动：
 
 ```powershell
 .\sunmoon-link.cmd sandbox-setup --elevated
 ```
 
-这是**唯一可选 UAC**：只调用官方 `codex sandbox setup --elevated --current-user`，
+这是**唯一的 UAC**：只调用官方 `codex sandbox setup --elevated --current-user`，
 固定到代理自己的 codex-home。拒绝用另一管理员账号替代当前用户。成功后再次实际探测，
 确认 elevated 可用才保存模式；取消、失败不自动降权。超时先检查现场，不重复发起 UAC。
-本轮未执行这个可选入口；普通 unelevated 路径不受它影响。
+
+提权模式下，Codex 只给用户目录的第一层授读；`%LOCALAPPDATA%\Programs` 这类带保护 ACL 的子目录断了继承，
+沙箱账户读不到本地 link 自己的 `node.exe` 和装在那里的 Python。所以本地 link 在提权探测前、每次启动时，
+给 `CodexSandboxUsers` 组补授读与执行（子项继承）：本地 link 自己的 `node`、`app` 目录，以及 PATH 里在用户目录
+之下的目录（不含 `.ssh` 等 Codex 排除的目录、不含本地 link 的控制目录与 codex-home），先查后授
+（`src/windowsSandboxRead.ts`）。2026-10-23 在所有者 Windows 上实测：提权模式下只读档删不掉白名单内外的文件，
+可写档白名单内能写能删、白名单外写不进删不掉，补授后 node、python 都能起。
 
 ## 日常控制
 

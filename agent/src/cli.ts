@@ -14,14 +14,14 @@ import { ExecServer } from "./execServer.js";
 import { log, registerSecret, configureWindowsLogs, safeData } from "./log.js";
 import { locateCodex } from "./paths.js";
 import { RelayClient } from "./relayClient.js";
-import { detectWindowsSandbox, ensureWindowsSandbox } from "./windowsBootstrap.js";
+import { detectWindowsSandbox, ensureWindowsSandbox, prepareElevatedReads } from "./windowsBootstrap.js";
 import { type WindowsHelper, WindowsTemporary, assertWindowsHome, locateWindowsHelper, pinWindowsDirectories, runSandboxProbe } from "./windowsRuntime.js";
 import { canonicalPath } from "./pathuri.js";
 import { importCandidates, loadMcp, saveMcp, confirmedMcpUrls } from "./mcp.js";
 import { localConfirm } from "./localConfirm.js";
 import { readHiddenToken } from "./hiddenToken.js";
 import { windowsConfirm } from "./windowsDesktop.js";
-import { acquireResident, autostart, preferences, readResidentStatus, residentAlive, runTray, closeTray, startResident, stopResident, setupElevated, openDesktop, checkControlDirectory, scheduleResidentRestart } from "./resident.js";
+import { acquireResident, autostart, preferences, readResidentStatus, residentAlive, runTray, closeTray, startResident, stopResident, setupElevated, upgradeSandbox, openDesktop, checkControlDirectory, scheduleResidentRestart } from "./resident.js";
 import { installedLaunchError } from "./siteTrust.js";
 import { configHasToken, menuPlan, osLabel, runPair, siteDocument, PAIR_EXIT } from "./pair.js";
 import {runPairPage,openDefaultBrowser,PairPageError} from "./pairPage.js";
@@ -173,11 +173,12 @@ async function main(argv: string[]): Promise<number> {
 
   const cfg = loadConfig();
   registerSecret(cfg.token);
-  if (["stop", "settings", "sandbox-setup"].includes(cmd)) {
+  if (["stop", "settings", "sandbox-setup", "sandbox-upgrade"].includes(cmd)) {
     if (process.platform !== "win32") throw new Error("Windows lifecycle command");
     if (cmd === "stop") console.log(JSON.stringify({ stopped: await stopResident() }));
     if (cmd === "settings") console.log(JSON.stringify(preferences(argv.slice(1))));
     if (cmd === "sandbox-setup") { if(argv.length!==2||argv[1]!=="--elevated")throw new Error("Optional UAC: sandbox-setup --elevated"); console.log(JSON.stringify(await setupElevated())); }
+    if (cmd === "sandbox-upgrade") { if(argv.length!==1)throw new Error("sandbox-upgrade takes no arguments"); console.log(JSON.stringify(await upgradeSandbox())); }
     return 0;
   }
   if (cmd === "mcp") {
@@ -250,6 +251,8 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
     if (cfg.libraryDir) { assertWindowsHome(CONFIG_DIR, [cfg.libraryDir]); assertWindowsHome(cfg.codexHome, [cfg.libraryDir]); }
     assertWindowsHome(cfg.codexHome, cfg.roots);
     const helper = locateWindowsHelper();
+    // 每次启动都补一遍：用户后来装进用户目录的程序（如 Python）也要让沙箱账户读得到
+    if (capability.mode === "elevated") prepareElevatedReads(cfg.codexHome, helper);
     windows = { home: cfg.codexHome, helper, mode: capability.mode, temporary: await WindowsTemporary.create(cfg.codexHome, cfg.roots, helper) };
     try { releaseRoots = await pinWindowsDirectories(windows.helper, [...cfg.roots, ...(cfg.libraryDir ? [cfg.libraryDir] : []), cfg.codexHome], cfg.codexHome); }
     catch (error) { await windows.temporary.close(); throw error; }
@@ -289,7 +292,7 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
       const settings = new LocalSettings({ file: CONFIG_PATH, config: () => cfg, confirm: windowed ? windowsConfirm : localConfirm,
         autostart: { get: async () => (await autostart("status")).enabled === true, set: async enabled => { await autostart(enabled ? "enable" : "disable"); } },
         restart: scheduleResidentRestart, onChange: () => log("info", "local settings applied", { code: "applied" }) });
-      presence = await startLocalApi({ webOrigin, version: VERSION, machineName: cfg.machineName, config: () => cfg, files, settings, projects, connected: () => relay.status === "connected", identity, linkState: () => relay.linkState,
+      presence = await startLocalApi({ webOrigin, version: VERSION, machineName: cfg.machineName, config: () => cfg, files, settings, projects, connected: () => relay.status === "connected", identity, linkState: () => relay.linkState, windowsSandbox: () => cfg.windowsSandbox?.mode,
         onRequest: (category, code) => log(code ? "warn" : "debug", "local request", { category, ...(code ? { code } : {}) }),
         onEvent: (event, details) => log(event === "unavailable" ? "warn" : "info", `presence ${event}`, details) });
     } catch {
@@ -351,7 +354,8 @@ function usage(): void {
   menu                       已连接则打开托盘，否则打开浏览器接入页
   pair-page-status           本机接入页状态（无令牌），供托盘排障
   autostart status|enable|disable   当前用户登录任务；安装时默认打开，可关闭
-  sandbox-setup --elevated         可选 UAC；先退出本地 link，仅同一 Windows 用户`);
+  sandbox-setup --elevated         提权模式设置（一次 UAC）；先退出本地 link，仅同一 Windows 用户
+  sandbox-upgrade                  托盘用：停下本地 link、做提权模式设置、再起来`);
 }
 
 main(process.argv.slice(2)).then((code) => process.exit(code), (e) => { log("error", "fatal", { error: String(e?.stack ?? e) }); process.exit(1); });

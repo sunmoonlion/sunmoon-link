@@ -152,12 +152,12 @@ function New-AgentProcess([string[]]$Command, [bool]$Detached=$false) {
     $Process.Start() | Out-Null
     return $Process
 }
-function Invoke-Agent([string[]]$Command, $Body=$null) {
+function Invoke-Agent([string[]]$Command, $Body=$null, [int]$TimeoutMs=35000) {
     $Process=New-AgentProcess $Command
     if ($null -ne $Body) { $Process.StandardInput.Write(($Body | ConvertTo-Json -Depth 8 -Compress)) }
     $Process.StandardInput.Close()
     $ReadOut=$Process.StandardOutput.ReadToEndAsync(); $ReadErr=$Process.StandardError.ReadToEndAsync()
-    if (-not $Process.WaitForExit(35000)) { $Process.Dispose(); throw '操作未及时完成，请查看状态；没有强杀进程。' }
+    if (-not $Process.WaitForExit($TimeoutMs)) { $Process.Dispose(); throw '操作未及时完成，请查看状态；没有强杀进程。' }
     $Text=$ReadOut.Result; $ErrorText=$ReadErr.Result; $ExitCode=$Process.ExitCode; $Process.Dispose()
     if ($ExitCode -ne 0) { throw '操作未完成，请使用 CLI 查看原因和本地日志。' }
     if ($Text.Trim()) { return ($Text | ConvertFrom-Json) }
@@ -175,6 +175,25 @@ function Get-ConnectionText($Current) {
         'rejected' { return '本地 link 没连着：被拒绝' }
         default { return '本地 link 没连着，等待重连' }
     }
+}
+# Codex 命令隔离（SDD 0041 第四节）：提权模式用独立的沙箱账户，白名单外写不进也删不掉；普通模式只拦写、不拦删。
+function Get-IsolationText([string]$Mode) {
+    if ($Mode -eq 'elevated') { return 'Codex 命令隔离：提权模式（独立的沙箱账户，白名单外写不进、删不掉）' }
+    if ($Mode -eq 'unelevated') { return 'Codex 命令隔离：普通模式——白名单外写不进，但能删文件' }
+    return 'Codex 命令隔离：暂不可读'
+}
+function Invoke-SandboxUpgrade([string]$Intro='') {
+    $Ask=$Intro+'提高到提权模式要管理员确认一次：Windows 会弹出确认框，点「是」。期间本地 link 会停下再起来，约半分钟。'+"`r`n`r`n"+'现在提高吗？'
+    if ([System.Windows.Forms.MessageBox]::Show($Ask,'SunMoon','YesNo','Question') -ne 'Yes') { return $false }
+    try {
+        $Result=Invoke-Agent @('sandbox-upgrade') $null 600000
+        if ([string]$Result.windowsSandbox.mode -eq 'elevated') {
+            [System.Windows.Forms.MessageBox]::Show('已提高：Codex 的命令改用独立的沙箱账户运行，本地 link 已重新起来。','SunMoon')|Out-Null
+            return $true
+        }
+    } catch {}
+    [System.Windows.Forms.MessageBox]::Show('没有提高成（取消了管理员确认，或这台电脑不允许）。本地 link 照旧以普通模式运行；以后可在「这台电脑上的设置」里再试。','SunMoon')|Out-Null
+    return $false
 }
 function Show-Status {
     try {
@@ -203,7 +222,7 @@ function Show-Status {
 }
 function Show-Preferences {
     $Prefs=Invoke-Agent @('settings','show')
-    $Dialog=New-Object System.Windows.Forms.Form; $Dialog.Text='SunMoon - 这台电脑上的设置'; $Dialog.Size=New-Object System.Drawing.Size(700,610); $Dialog.StartPosition='CenterScreen'
+    $Dialog=New-Object System.Windows.Forms.Form; $Dialog.Text='SunMoon - 这台电脑上的设置'; $Dialog.Size=New-Object System.Drawing.Size(700,655); $Dialog.StartPosition='CenterScreen'
     $NameLabel=New-Object System.Windows.Forms.Label; $NameLabel.Text='电脑名'; $NameLabel.SetBounds(15,15,100,24)
     $Name=New-Object System.Windows.Forms.TextBox; $Name.Text=$Prefs.machineName; $Name.SetBounds(120,15,500,26)
     $RootLabel=New-Object System.Windows.Forms.Label; $RootLabel.Text='勾选允许访问的目录；未勾选的目录只记住位置，不授予访问权限。'; $RootLabel.SetBounds(15,52,650,26)
@@ -228,10 +247,14 @@ function Show-Preferences {
     $AutoWas=$false
     try { $AutoWas=[bool](Invoke-Agent @('autostart','status')).enabled; $AutoRun.Checked=$AutoWas } catch { $AutoRun.Enabled=$false }
     $NoteText='保存后本地 link 会自己重启生效。全部取消勾选可关闭项目目录访问；临时批准在断开时失效。'
-    try { $Current=Invoke-Agent @('status'); if($Current.relay.lastError){$NoteText+="`r`n"+[string]$Current.relay.lastError} } catch {}
-    $Note=New-Object System.Windows.Forms.Label; $Note.Text=$NoteText; $Note.SetBounds(15,450,650,55)
-    $Save=New-Object System.Windows.Forms.Button; $Save.Name='SaveSettings'; $Save.Text='保存设置'; $Save.SetBounds(405,515,120,30)
-    $Cancel=New-Object System.Windows.Forms.Button; $Cancel.Text='取消'; $Cancel.SetBounds(545,515,120,30)
+    $IsoMode=''
+    try { $Current=Invoke-Agent @('status'); $IsoMode=[string]$Current.execServer.windowsSandbox.mode; if($Current.relay.lastError){$NoteText+="`r`n"+[string]$Current.relay.lastError} } catch {}
+    $Isolation=New-Object System.Windows.Forms.Label; $Isolation.Name='SandboxIsolation'; $Isolation.Text=(Get-IsolationText $IsoMode); $Isolation.SetBounds(15,452,470,40)
+    $Upgrade=New-Object System.Windows.Forms.Button; $Upgrade.Name='UpgradeSandbox'; $Upgrade.Text='提高安全（要管理员确认）'; $Upgrade.SetBounds(490,448,175,30); $Upgrade.Visible=($IsoMode -eq 'unelevated')
+    $Upgrade.Add_Click({ if (Invoke-SandboxUpgrade) { $Dialog.Close() } })
+    $Note=New-Object System.Windows.Forms.Label; $Note.Text=$NoteText; $Note.SetBounds(15,495,650,55)
+    $Save=New-Object System.Windows.Forms.Button; $Save.Name='SaveSettings'; $Save.Text='保存设置'; $Save.SetBounds(405,560,120,30)
+    $Cancel=New-Object System.Windows.Forms.Button; $Cancel.Text='取消'; $Cancel.SetBounds(545,560,120,30)
     $Save.Add_Click({
         try {
             Invoke-Agent @('settings','set') @{machineName=$Name.Text; roots=@($Roots.CheckedItems | ForEach-Object{[string]$_}); rootChoices=@($Roots.Items | ForEach-Object{[string]$_}); ceiling=@{sandbox=[string]$Mode.SelectedItem; network=[bool]$Network.Checked}; libraryDir=$(if($Library.Text){$Library.Text}else{$null})} | Out-Null
@@ -242,7 +265,7 @@ function Show-Preferences {
         } catch { [System.Windows.Forms.MessageBox]::Show($_.Exception.Message,'SunMoon')|Out-Null }
     })
     $Cancel.Add_Click({$Dialog.Close()}); $Dialog.CancelButton=$Cancel
-    $Dialog.Controls.AddRange(@($NameLabel,$Name,$RootLabel,$Roots,$Add,$Remove,$Mode,$Network,$LibraryLabel,$Library,$PickLibrary,$ClearLibrary,$LibraryNote,$AutoRun,$Note,$Save,$Cancel))
+    $Dialog.Controls.AddRange(@($NameLabel,$Name,$RootLabel,$Roots,$Add,$Remove,$Mode,$Network,$LibraryLabel,$Library,$PickLibrary,$ClearLibrary,$LibraryNote,$AutoRun,$Isolation,$Upgrade,$Note,$Save,$Cancel))
     Initialize-VisibleForm $Dialog
     $Watch = New-FormWatchdog $Dialog
     try{$Watch.Start(); $Dialog.ShowDialog()|Out-Null}finally{$Watch.Stop(); $Watch.Dispose(); $Dialog.Dispose()}
@@ -301,9 +324,29 @@ $Timer.Add_Tick({
         } else {$Tray.Text='SunMoon link: 没在运行';$Connection.Text='状态：本地 link 没在运行'}
     } catch {$Tray.Text='SunMoon link: 状态暂不可读';$Connection.Text='状态：暂不可读'}
 })
-$Watch.Start(); $Timer.Start()
+# 还是普通模式就问一次要不要提高：只问一次（记在控制目录的 sandbox-offer.json），以后在「这台电脑上的设置」里提高。
+# 本地 link 刚起来时状态文件可能还没写，隔 8 秒再看，最多看 10 次。
+$script:OfferTries=0
+$Offer=New-Object System.Windows.Forms.Timer; $Offer.Interval=8000
+$Offer.Add_Tick({
+    try {
+        $OfferFile=Join-Path $State 'sandbox-offer.json'; $StatusPath=Join-Path $State 'status.json'
+        if (Test-Path -LiteralPath $OfferFile) { $Offer.Stop(); return }
+        $script:OfferTries++
+        if (-not (Test-Path -LiteralPath $StatusPath)) { if ($script:OfferTries -ge 10) { $Offer.Stop() }; return }
+        $Current=Get-Content -LiteralPath $StatusPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $Mode=[string]$Current.execServer.windowsSandbox.mode
+        if (-not $Mode) { if ($script:OfferTries -ge 10) { $Offer.Stop() }; return }
+        $Offer.Stop()
+        if ($Mode -ne 'unelevated') { return }
+        @{offeredAt=(Get-Date).ToUniversalTime().ToString('o')} | ConvertTo-Json -Compress | Set-Content -LiteralPath $OfferFile -Encoding UTF8
+        $Intro='这台电脑上 Codex 的命令隔离现在是普通模式：白名单外写不进，但能删文件。'+"`r`n"+'建议提高到提权模式（OpenAI 推荐的做法）：Codex 的命令改用独立的沙箱账户运行，白名单外写不进、也删不掉。'+"`r`n`r`n"
+        Invoke-SandboxUpgrade $Intro | Out-Null
+    } catch { $Offer.Stop() }
+})
+$Watch.Start(); $Timer.Start(); $Offer.Start()
 try {[System.Windows.Forms.Application]::Run()}
-finally {$Timer.Dispose(); $Watch.Stop(); $Watch.Dispose(); $TrayForm.Dispose(); $Tray.Visible=$false; $Tray.Dispose(); $Menu.Dispose(); Remove-Item -LiteralPath $TrayStatus -ErrorAction SilentlyContinue; $Mutex.ReleaseMutex(); $Mutex.Dispose()}
+finally {$Offer.Dispose(); $Timer.Dispose(); $Watch.Stop(); $Watch.Dispose(); $TrayForm.Dispose(); $Tray.Visible=$false; $Tray.Dispose(); $Menu.Dispose(); Remove-Item -LiteralPath $TrayStatus -ErrorAction SilentlyContinue; $Mutex.ReleaseMutex(); $Mutex.Dispose()}
 } finally {
     # Also handles exceptions during setup, before the modal/run-loop finally.
     foreach ($Name in @('tray.json')) {

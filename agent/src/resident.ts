@@ -207,6 +207,13 @@ export async function setupElevated(): Promise<object> {
   if(!cfg.windowsSandbox.elevatedUsable) throw new Error("Setup did not produce a usable elevated sandbox; previous configuration is retained");
   saveConfig(cfg);return {windowsSandbox:cfg.windowsSandbox};
 }
+/** 托盘「提高安全」：停下本地 link → 提权设置（一次管理员确认）→ 再起来。设置取消或失败也把本地 link 起回来，模式照旧。 */
+export async function upgradeSandbox(): Promise<object> {
+  checkControlDirectory();
+  const wasRunning = await stopResident();
+  try { return await setupElevated(); }
+  finally { if (wasRunning) await startResident(); }
+}
 export function preferences(argv: string[]): object {
   checkControlDirectory(); const cfg = loadConfig();
   if (argv[0] === "set") {

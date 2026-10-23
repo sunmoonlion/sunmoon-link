@@ -14,6 +14,8 @@ export interface LocalApiOptions {
   identity?: () => { deviceId: string; host: string; os: string };
   /** 连接状态（relayClient.linkState）：网页分清令牌失效和连不上 */
   linkState?: () => string;
+  /** Windows 上 Codex 命令隔离的模式；普通模式（unelevated）拦写不拦删，网页据此提醒提高（0041 第四节）。 */
+  windowsSandbox?: () => "elevated" | "unelevated" | undefined;
   config?: () => AgentConfig;
   files?: LocalFiles;
   ticket?: TicketVerifier;
@@ -81,7 +83,7 @@ function createHandler(options: LocalApiOptions) {
       if (req.method !== "GET") { respond(res, 405, { ...responseHeaders, Allow: "GET, OPTIONS" }, JSON.stringify({ code: "method_not_allowed", message: "method_not_allowed" })); return; }
       const id = options.identity?.();
       respond(res, 200, responseHeaders, JSON.stringify({ agent: "sunmoon-agent", version: options.version, machine_name: options.machineName, connected: options.connected(),
-        ...(id ? { device_id: id.deviceId, host: id.host, os: id.os } : {}), ...(options.linkState ? { link_state: options.linkState() } : {}) })); return;
+        ...(id ? { device_id: id.deviceId, host: id.host, os: id.os } : {}), ...(options.linkState ? { link_state: options.linkState() } : {}), ...(options.windowsSandbox?.() ? { windows_sandbox: options.windowsSandbox() } : {}) })); return;
     }
     const controller = new AbortController(); pending.add(controller);
     const abort = () => controller.abort();
