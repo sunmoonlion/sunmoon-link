@@ -49,6 +49,14 @@ export async function waitForPort(port: number, timeoutMs: number, alive: () => 
   return false;
 }
 
+// 云端的 app-server 会成批同时发文件信息查询（找 AGENTS.md 等）；exec-server 默认一个个处理，一批请求在用户电脑上排队累加。
+// 并发处理是上游可选开启的（Codex 0.155.1 起有 `--concurrent-requests`，见 exec-server README），官方测试用到 32，这里取 8。
+export const EXEC_SERVER_CONCURRENT_REQUESTS = 8;
+
+export function execServerCommand(codexBin: string, url: string): string[] {
+  return [codexBin, "exec-server", "--concurrent-requests", String(EXEC_SERVER_CONCURRENT_REQUESTS), "--listen", url];
+}
+
 export class ExecServer {
   private child: ChildProcess | null = null;
   private stopping = false;
@@ -85,7 +93,7 @@ export class ExecServer {
       fs.writeFileSync(cfg, ownedConfig(this.opts.windowsMode, this.opts.mcpServers), { mode: 0o600 });
     } else if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, 'sandbox_mode = "read-only"\napproval_policy = "never"\n', { mode: 0o600 });
     this.port = this.opts.port || (await freeLoopbackPort());
-    const command = [this.opts.codexBin, "exec-server", "--listen", this.url];
+    const command = execServerCommand(this.opts.codexBin, this.url);
     const { argv, sandboxed } = wrapCommand(command, { enabled: this.opts.outerSandbox, bwrap: this.opts.bwrap, roots: this.opts.roots, codexHome: this.opts.codexHome });
     this.sandboxed = sandboxed;
     this.generation += 1;
