@@ -1,10 +1,17 @@
 // SDD 0022: a separate, read-only JSON-RPC service. Never forwards to exec-server.
+// The one exception is the test computer (ledger 129): with runsWritable it may create and remove
+// directories directly under <root>/runs/, so each knowlab test gets a clean folder. Users' links stay read-only.
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { canonicalPath, isUnderAny } from "./pathuri.js";
 
 export const SERVICE_CAPABILITY = "service-v1";
+export const SERVICE_RUNS_CAPABILITY = "service-runs-v1";
+export const RUNS_DIR = "runs";
+const RUN_NAME = /^[A-Za-z0-9._-]{1,128}$/;
+const READS = ["fs/readDirectory", "fs/getMetadata", "fs/readFile"];
+const WRITES = ["fs/createDirectory", "fs/remove"];
 export const SERVICE_MAX_FRAME = 1024 * 1024;
 export const SERVICE_MAX_READ = 512 * 1024;
 const MAX_FILE = 64 * 1024 * 1024;
@@ -25,6 +32,8 @@ export interface ServiceOptions {
   files?: ServiceFiles;
   now?: () => number;
   onRequest?: (method: string, code?: number) => void;
+  /** Test computer only (Linux): allow fs/createDirectory and fs/remove for <root>/runs/<name>. */
+  runsWritable?: boolean;
 }
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 const metadata = (s: fs.Stats) => ({ type: s.isSymbolicLink() ? "link" : s.isDirectory() ? "dir" : s.isFile() ? "file" : "other", size: s.size, mtime: Math.trunc(s.mtimeMs) });
@@ -35,9 +44,11 @@ export class ServiceHandler {
   private last: number;
   private closed = false;
   private readonly platform: NodeJS.Platform;
+  private readonly runsWritable: boolean;
   constructor(private readonly opts: ServiceOptions) {
     this.platform = opts.platform ?? process.platform;
     this.last = (opts.now ?? Date.now)();
+    this.runsWritable = opts.runsWritable === true && this.platform !== "win32";
   }
   async close(): Promise<void> { this.closed = true; await this.opts.files?.close(); }
   async receive(text: string, binary = false): Promise<string | null> {
@@ -50,7 +61,7 @@ export class ServiceHandler {
     if (!object(frame) || frame.jsonrpc !== "2.0" || typeof frame.method !== "string" || !validId
       || Object.keys(frame).some(k => !["jsonrpc", "id", "method", "params"].includes(k))) return this.error(null, -32600);
     const notification = !Object.hasOwn(frame, "id");
-    const method = ["service/hello", "fs/readDirectory", "fs/getMetadata", "fs/readFile"].includes(frame.method) ? frame.method : "unknown";
+    const method = ["service/hello", ...READS, ...WRITES].includes(frame.method) ? frame.method : "unknown";
     const now = (this.opts.now ?? Date.now)();
     this.tokens = Math.min(50, this.tokens + Math.max(0, now - this.last) * .05); this.last = now;
     if (this.tokens < 1 || this.active >= 4) {
@@ -76,9 +87,13 @@ export class ServiceHandler {
   private async dispatch(method: string, params: unknown): Promise<object> {
     if (method === "service/hello") {
       if (params !== undefined && (!object(params) || Object.keys(params).length)) throw new ServiceError(-32602);
-      return { agent: "sunmoon-agent", version: this.opts.version, roots: [...this.opts.roots()], libraryDir: null, capabilities: [SERVICE_CAPABILITY] };
+      return { agent: "sunmoon-agent", version: this.opts.version, roots: [...this.opts.roots()], libraryDir: null, capabilities: [SERVICE_CAPABILITY, ...(this.runsWritable ? [SERVICE_RUNS_CAPABILITY] : [])] };
     }
-    if (!["fs/readDirectory", "fs/getMetadata", "fs/readFile"].includes(method)) throw new ServiceError(-32601);
+    if (WRITES.includes(method)) {
+      if (!this.runsWritable) throw new ServiceError(-32601);
+      return this.writeRun(method, params);
+    }
+    if (!READS.includes(method)) throw new ServiceError(-32601);
     if (!object(params) || typeof params.path !== "string"
       || Object.keys(params).some(k => !(method === "fs/readFile" ? ["path", "offset", "length"] : ["path"]).includes(k))) throw new ServiceError(-32602);
     const target = params.path;
@@ -130,6 +145,32 @@ export class ServiceHandler {
       const n = fs.readSync(fd, bytes, 0, bytes.length, offset);
       return { content: bytes.subarray(0, n).toString("base64"), size: opened.size, mtime: Math.trunc(opened.mtimeMs), eof: offset + n >= opened.size };
     } finally { fs.closeSync(fd); }
+  }
+  /** Only <root>/runs/<name>: create (making runs/ if missing) or remove recursively. Removing what is gone succeeds. */
+  private writeRun(method: string, params: unknown): object {
+    if (!object(params) || typeof params.path !== "string"
+      || Object.keys(params).some(k => !["path", "recursive", "force"].includes(k))
+      || (params.recursive !== undefined && typeof params.recursive !== "boolean")
+      || (params.force !== undefined && typeof params.force !== "boolean")) throw new ServiceError(-32602);
+    const target = canonicalPath(params.path, this.platform);
+    if (!target || isUnderAny(params.path, [this.opts.configDir, this.opts.codexHome], this.platform)) throw new ServiceError(-32010);
+    const runs = path.dirname(target), name = path.basename(target), root = path.dirname(runs);
+    const roots = this.opts.roots().map(r => canonicalPath(r, this.platform));
+    if (path.basename(runs) !== RUNS_DIR || !roots.includes(root) || !RUN_NAME.test(name) || name === "." || name === "..") throw new ServiceError(-32010);
+    this.inspect(root);
+    if (method === "fs/remove") {
+      if (!fs.existsSync(runs)) return {};
+      this.inspect(runs);
+      // rm never follows links: a link Codex left in runs/ is removed itself, not its destination.
+      fs.rmSync(target, { recursive: true, force: true });
+      return {};
+    }
+    if (!fs.existsSync(runs)) fs.mkdirSync(runs);
+    this.inspect(runs);
+    if (!fs.existsSync(target)) fs.mkdirSync(target);
+    this.inspect(target);
+    if (!fs.lstatSync(target).isDirectory()) throw new ServiceError(-32010);
+    return {};
   }
   private inspect(target: string): void {
     let p = target;

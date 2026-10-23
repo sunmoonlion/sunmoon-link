@@ -257,12 +257,15 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
     await es.start();
     if (windows && !await runSandboxProbe(es.url, cfg.codexHome, cfg.roots[0] ?? cfg.codexHome, windows.mode, windows.temporary.directory)) throw new Error("Configured Windows sandbox is no longer usable; run init");
   } catch (error) { await es.stop(); releaseRoots?.(); await windows?.temporary.close(); throw error; }
+  // 测试电脑（集群里的 Linux 容器）由部署设 SUNMOON_AGENT_TEST_RUNS=1：服务流可在 runs/ 下建、删目录，每次测试一个干净目录（账 129）
+  const serviceRunsWritable = process.platform !== "win32" && process.env.SUNMOON_AGENT_TEST_RUNS === "1";
+  if (serviceRunsWritable) log("info", "test computer: service may create and remove folders under runs/");
   // 被会合点拒绝就退出（退出码 3），不挂着一个连不上的进程：开机自启、托盘、systemd 都能据此看出出错（KIND 12 实测）
   let onRejected: (reason: string) => void = () => {};
   const relay = new RelayClient({
     windows: windows ? { ...windows, executorEnvironment: () => es.windowsEnv, confirmedHttpUrls: confirmedMcpUrls(mcpServers!) } : undefined, relayUrl: cfg.relayUrl, userId: cfg.userId, token: cfg.token, codexVersion: codex.version, softwareVersion: VERSION,
     localUrl: () => es.url, ceiling: () => cfg.ceiling, roots: () => cfg.roots, machineName: () => cfg.machineName,
-    codexHome: cfg.codexHome,
+    codexHome: cfg.codexHome, serviceRunsWritable,
     onRejected: (reason) => onRejected(reason),
     confirmPermission: windows ? (windowed ? windowsConfirm : localConfirm) : undefined,
   });

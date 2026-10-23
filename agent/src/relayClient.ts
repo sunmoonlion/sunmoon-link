@@ -11,7 +11,7 @@ import type { LocalPermissions } from "./permissions.js";
 import { hello, PERMISSION_CAPABILITY, validPermissionReport, type PermissionReport, type ControlMessage } from "./relayProtocol.js";
 import { CONFIG_DIR } from "./config.js";
 import { WindowsFiles } from "./windowsRuntime.js";
-import { ServiceHandler, SERVICE_CAPABILITY, SERVICE_MAX_FRAME } from "./service.js";
+import { ServiceHandler, SERVICE_CAPABILITY, SERVICE_MAX_FRAME, SERVICE_RUNS_CAPABILITY } from "./service.js";
 
 export interface RelayClientOptions {
   windows?: { home: string; helper: WindowsHelper; mode: WindowsMode; temporary: WindowsTemporary; executorEnvironment: () => NodeJS.ProcessEnv; confirmedHttpUrls?: readonly string[] };
@@ -30,6 +30,8 @@ export interface RelayClientOptions {
   onNotice?: (code: "codex_version_mismatch") => void;
   confirmPermission?: LocalPermissions["confirm"];
   codexHome?: string;
+  /** 测试电脑才开（账 129）：服务流可在白名单根下的 runs/ 里建、删目录。普通用户的本地 link 不开。 */
+  serviceRunsWritable?: boolean;
   /** 控制通道的两个时限（毫秒）；测试才改。见 CONTROL_TIMING */
   timing?: { handshakeMs: number; heartbeatMs: number };
 }
@@ -150,7 +152,7 @@ export class RelayClient {
       const machine = this.opts.machineName
         ? { name: this.opts.machineName(), roots: [...this.opts.roots()], ceiling: { ...this.opts.ceiling() } }
         : undefined;
-      ws.send(hello({ role: "agent", user: this.opts.userId, token: this.opts.token, codex: this.opts.codexVersion, software: this.opts.softwareVersion, capabilities: [SERVICE_CAPABILITY], ...(machine ? { machine } : {}) }));
+      ws.send(hello({ role: "agent", user: this.opts.userId, token: this.opts.token, codex: this.opts.codexVersion, software: this.opts.softwareVersion, capabilities: [SERVICE_CAPABILITY, ...(this.opts.serviceRunsWritable ? [SERVICE_RUNS_CAPABILITY] : [])], ...(machine ? { machine } : {}) }));
     });
     ws.on("message", (data) => {
       if (this.ctrl !== ws || this.stopped) return;
@@ -227,7 +229,7 @@ export class RelayClient {
     }
     this.stats.service.connections++; this.stats.service.active++;
     const w = this.opts.windows;
-    const handler = new ServiceHandler({ version: this.opts.softwareVersion, roots: this.opts.roots,
+    const handler = new ServiceHandler({ version: this.opts.softwareVersion, roots: this.opts.roots, runsWritable: this.opts.serviceRunsWritable,
       configDir: CONFIG_DIR, codexHome: w?.home ?? this.opts.codexHome ?? CONFIG_DIR,
       files: w ? new WindowsFiles({ url: this.opts.localUrl, home: w.home, roots: this.opts.roots(), mode: w.mode,
         writable: false, helper: w.helper, temporary: w.temporary.directory }) : undefined,

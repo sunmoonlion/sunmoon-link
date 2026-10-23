@@ -62,7 +62,7 @@ describe("service-v1 read boundary", () => {
     expect(result.entries[0]).toEqual({ name: expect.any(String), type: "file", size: 0, mtime: expect.any(Number) });
   });
   it("validates JSON-RPC and never exposes process, writes or helper methods", async () => {
-    for (const method of ["process/start", "fs/writeFile", "service/readFile", "environmentConfig/read"]) expect((await rpc(method, { path: root })).error.code).toBe(-32601);
+    for (const method of ["process/start", "fs/writeFile", "service/readFile", "environmentConfig/read", "fs/createDirectory", "fs/remove"]) expect((await rpc(method, { path: path.join(root, "runs", "x") })).error.code).toBe(-32601);
     expect((await rpc("fs/readFile", { path: "file:///tmp/x" })).error.code).toBe(-32010);
     expect((await rpc("fs/readFile", { path: root, sandbox: null })).error.code).toBe(-32602);
     expect(JSON.parse((await handler.receive("not json"))!).error.code).toBe(-32700);
@@ -94,5 +94,54 @@ describe("service-v1 read boundary", () => {
     await rpc("fs/readFile", { path: path.join(root, "secret") }, h);
     expect(records).toEqual([["fs/readFile", -32010]]);
     await h.close(); expect(await h.receive('{"jsonrpc":"2.0","id":1,"method":"service/hello"}')).toBeNull();
+  });
+});
+
+describe("service-runs-v1 on the test computer (ledger 129)", () => {
+  let runsHandler: ServiceHandler;
+  const runs = () => path.join(root, "runs");
+  beforeEach(() => { runsHandler = new ServiceHandler({ version: "0.5.1", roots: () => [root], configDir: path.join(base, "config"), codexHome: path.join(base, "home"), platform: "linux", runsWritable: true }); });
+  afterEach(async () => { await runsHandler.close(); });
+  it("announces the capability only when switched on", async () => {
+    expect((await rpc("service/hello", undefined, runsHandler)).result.capabilities).toEqual(["service-v1", "service-runs-v1"]);
+    expect((await rpc("service/hello")).result.capabilities).toEqual(["service-v1"]);
+  });
+  it("creates runs/<name> (and runs/ itself), idempotently, and removes it recursively", async () => {
+    const mine = path.join(runs(), "20261023-abc");
+    expect((await rpc("fs/createDirectory", { path: mine, recursive: true }, runsHandler)).result).toEqual({});
+    expect(fs.statSync(mine).isDirectory()).toBe(true);
+    expect((await rpc("fs/createDirectory", { path: mine, recursive: true }, runsHandler)).result).toEqual({});
+    fs.mkdirSync(path.join(mine, "deep", "er"), { recursive: true }); fs.writeFileSync(path.join(mine, "deep", "er", "f.txt"), "x");
+    expect((await rpc("fs/remove", { path: mine }, runsHandler)).result).toEqual({});
+    expect(fs.existsSync(mine)).toBe(false);
+    expect((await rpc("fs/remove", { path: mine }, runsHandler)).result).toEqual({});
+    fs.rmSync(runs(), { recursive: true });
+    expect((await rpc("fs/remove", { path: mine }, runsHandler)).result).toEqual({});
+  });
+  it("refuses anything that is not exactly <root>/runs/<name>", async () => {
+    fs.mkdirSync(runs());
+    for (const target of [root, runs(), path.join(root, "other", "x"), path.join(runs(), "a", "b"), path.join(runs(), "bad name"), path.join(runs(), ".."), path.join(base, "runs", "x"), path.join(root + "-sibling", "runs", "x")]) {
+      expect((await rpc("fs/remove", { path: target }, runsHandler)).error.code).toBe(-32010);
+      expect((await rpc("fs/createDirectory", { path: target }, runsHandler)).error.code).toBe(-32010);
+    }
+    expect(fs.existsSync(root)).toBe(true);
+    for (const params of [{ path: path.join(runs(), "x"), recursive: "yes" }, { path: path.join(runs(), "x"), mode: 7 }, { recursive: true }]) expect((await rpc("fs/createDirectory", params, runsHandler)).error.code).toBe(-32602);
+  });
+  it("never follows links: a linked runs/ is refused and a link inside runs/ is removed itself", async () => {
+    const outside = path.join(base, "outside"); fs.mkdirSync(outside); fs.writeFileSync(path.join(outside, "keep.txt"), "keep");
+    fs.symlinkSync(outside, runs());
+    expect((await rpc("fs/createDirectory", { path: path.join(runs(), "x") }, runsHandler)).error.code).toBe(-32010);
+    expect((await rpc("fs/remove", { path: path.join(runs(), "keep.txt") }, runsHandler)).error.code).toBe(-32010);
+    fs.unlinkSync(runs()); fs.mkdirSync(runs());
+    const link = path.join(runs(), "planted"); fs.symlinkSync(outside, link);
+    expect((await rpc("fs/remove", { path: link }, runsHandler)).result).toEqual({});
+    expect(fs.existsSync(link)).toBe(false);
+    expect(fs.readFileSync(path.join(outside, "keep.txt"), "utf8")).toBe("keep");
+  });
+  it("stays off on Windows even when asked", async () => {
+    const w = new ServiceHandler({ version: "0.5.1", roots: () => [root], configDir: path.join(base, "config"), codexHome: path.join(base, "home"), platform: "win32", runsWritable: true });
+    expect((await rpc("service/hello", undefined, w)).result.capabilities).toEqual(["service-v1"]);
+    expect((await rpc("fs/createDirectory", { path: path.join(runs(), "x") }, w)).error.code).toBe(-32601);
+    await w.close();
   });
 });
