@@ -263,12 +263,17 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
   // 测试电脑（集群里的 Linux 容器）由部署设 SUNMOON_AGENT_TEST_RUNS=1：服务流可在 runs/ 下建、删目录，每次测试一个干净目录（账 129）
   const serviceRunsWritable = process.platform !== "win32" && process.env.SUNMOON_AGENT_TEST_RUNS === "1";
   if (serviceRunsWritable) log("info", "test computer: service may create and remove folders under runs/");
+  // 新建项目（0024）：装有本地 link 的电脑走回环口，远程登录 link 的电脑走服务流（账 165），两边共用这一份、同一套规矩：
+  // 只在白名单根下，Windows 上经可写的内沙箱 helper（上限是只读时不可写）
+  const projects = new LocalProjects({ roots: () => cfg.roots, denied: () => [CONFIG_DIR, cfg.codexHome, ...(cfg.libraryDir ? [cfg.libraryDir] : [])], ceiling: () => cfg.ceiling,
+    files: windows ? new WindowsFiles({ url: () => es.url, home: windows.home, roots: cfg.roots, mode: windows.mode, writable: cfg.ceiling.sandbox !== "read-only", helper: windows.helper, temporary: windows.temporary.directory }) : undefined,
+    kill: windows ? killWindowsTree : undefined });
   // 被会合点拒绝就退出（退出码 3），不挂着一个连不上的进程：开机自启、托盘、systemd 都能据此看出出错（KIND 12 实测）
   let onRejected: (reason: string) => void = () => {};
   const relay = new RelayClient({
     windows: windows ? { ...windows, executorEnvironment: () => es.windowsEnv, confirmedHttpUrls: confirmedMcpUrls(mcpServers!) } : undefined, relayUrl: cfg.relayUrl, userId: cfg.userId, token: cfg.token, codexVersion: codex.version, softwareVersion: VERSION,
     localUrl: () => es.url, ceiling: () => cfg.ceiling, roots: () => cfg.roots, machineName: () => cfg.machineName, identity,
-    codexHome: cfg.codexHome, serviceRunsWritable,
+    codexHome: cfg.codexHome, serviceRunsWritable, serviceProjects: projects,
     onRejected: (reason) => onRejected(reason),
     confirmPermission: windows ? (windowed ? windowsConfirm : localConfirm) : undefined,
   });
@@ -284,10 +289,6 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
       const settings = new LocalSettings({ file: CONFIG_PATH, config: () => cfg, confirm: windowed ? windowsConfirm : localConfirm,
         autostart: { get: async () => (await autostart("status")).enabled === true, set: async enabled => { await autostart(enabled ? "enable" : "disable"); } },
         restart: scheduleResidentRestart, onChange: () => log("info", "local settings applied", { code: "applied" }) });
-      // 0024: new-project folders and clones go only under the workspace roots; the Windows helper is writable there unless the ceiling is read-only.
-      const projects = new LocalProjects({ roots: () => cfg.roots, denied: () => [CONFIG_DIR, cfg.codexHome, ...(cfg.libraryDir ? [cfg.libraryDir] : [])], ceiling: () => cfg.ceiling,
-        files: windows ? new WindowsFiles({ url: () => es.url, home: windows.home, roots: cfg.roots, mode: windows.mode, writable: cfg.ceiling.sandbox !== "read-only", helper: windows.helper, temporary: windows.temporary.directory }) : undefined,
-        kill: windows ? killWindowsTree : undefined });
       presence = await startLocalApi({ webOrigin, version: VERSION, machineName: cfg.machineName, config: () => cfg, files, settings, projects, connected: () => relay.status === "connected", identity, linkState: () => relay.linkState,
         onRequest: (category, code) => log(code ? "warn" : "debug", "local request", { category, ...(code ? { code } : {}) }),
         onEvent: (event, details) => log(event === "unavailable" ? "warn" : "info", `presence ${event}`, details) });
@@ -320,7 +321,7 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
       log(code === 0 ? "info" : "error", "shutting down", { why, exitCode: code });
       clearInterval(timer);
       if (code !== 0) writeStatus(); // 保留最后状态（含被拒原因），便于用户与托盘查看
-      relay.stop(); srv.close(); await presence?.close(); await es.stop(); releaseRoots?.(); await windows?.temporary.close();
+      relay.stop(); srv.close(); if (presence) await presence.close(); else await projects.close(); await es.stop(); releaseRoots?.(); await windows?.temporary.close();
       if (code === 0) { try { fs.unlinkSync(STATUS_PATH); } catch {} }
       await resident?.close();
       resolve(code);

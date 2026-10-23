@@ -1,13 +1,20 @@
 // SDD 0022: a separate, read-only JSON-RPC service. Never forwards to exec-server.
 // The one exception is the test computer (ledger 129): with runsWritable it may create and remove
 // directories directly under <root>/runs/, so each knowlab test gets a clean folder. Users' links stay read-only.
+// New projects from a computer that is not this one (ledger 165): projects/folder and projects/clone go to the
+// same LocalProjects as the loopback API, with the same rules (only under the workspace roots, never config/library).
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { LocalError } from "./localFiles.js";
 import { canonicalPath, isUnderAny } from "./pathuri.js";
 
 export const SERVICE_CAPABILITY = "service-v1";
 export const SERVICE_RUNS_CAPABILITY = "service-runs-v1";
+export const SERVICE_PROJECTS_CAPABILITY = "service-projects-v1";
+/** projects/* refusals carry LocalProjects' code (auth_required, target_not_empty, …) as the message. */
+export const SERVICE_PROJECT_REFUSED = -32020;
+const PROJECTS = ["projects/folder", "projects/clone"];
 export const RUNS_DIR = "runs";
 const RUN_NAME = /^[A-Za-z0-9._-]{1,128}$/;
 const READS = ["fs/readDirectory", "fs/getMetadata", "fs/readFile"];
@@ -23,6 +30,10 @@ const errors: Record<number, string> = {
 class ServiceError extends Error { constructor(readonly code: number) { super(errors[code]); } }
 export class ServiceFrameError extends Error {}
 export interface ServiceFiles { call(method: string, params: object): Promise<any>; close(): Promise<void> }
+export interface ServiceProjects {
+  folder(input: unknown): Promise<object>;
+  clone(body: { url?: unknown; path?: unknown; auth?: unknown }, signal?: AbortSignal): Promise<object>;
+}
 export interface ServiceOptions {
   version: string;
   roots: () => readonly string[];
@@ -34,6 +45,8 @@ export interface ServiceOptions {
   onRequest?: (method: string, code?: number) => void;
   /** Test computer only (Linux): allow fs/createDirectory and fs/remove for <root>/runs/<name>. */
   runsWritable?: boolean;
+  /** New projects (ledger 165): the LocalProjects the loopback API uses. Absent = methods not offered. */
+  projects?: ServiceProjects;
 }
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 const metadata = (s: fs.Stats) => ({ type: s.isSymbolicLink() ? "link" : s.isDirectory() ? "dir" : s.isFile() ? "file" : "other", size: s.size, mtime: Math.trunc(s.mtimeMs) });
@@ -45,12 +58,17 @@ export class ServiceHandler {
   private closed = false;
   private readonly platform: NodeJS.Platform;
   private readonly runsWritable: boolean;
+  private readonly aborts = new Set<AbortController>();
   constructor(private readonly opts: ServiceOptions) {
     this.platform = opts.platform ?? process.platform;
     this.last = (opts.now ?? Date.now)();
     this.runsWritable = opts.runsWritable === true && this.platform !== "win32";
   }
-  async close(): Promise<void> { this.closed = true; await this.opts.files?.close(); }
+  async close(): Promise<void> {
+    this.closed = true;
+    for (const controller of this.aborts) controller.abort(); // a clone in flight stops when the stream goes
+    await this.opts.files?.close();
+  }
   async receive(text: string, binary = false): Promise<string | null> {
     if (this.closed) return null;
     if (binary || Buffer.byteLength(text) > SERVICE_MAX_FRAME) throw new ServiceFrameError("invalid service frame");
@@ -61,7 +79,7 @@ export class ServiceHandler {
     if (!object(frame) || frame.jsonrpc !== "2.0" || typeof frame.method !== "string" || !validId
       || Object.keys(frame).some(k => !["jsonrpc", "id", "method", "params"].includes(k))) return this.error(null, -32600);
     const notification = !Object.hasOwn(frame, "id");
-    const method = ["service/hello", ...READS, ...WRITES].includes(frame.method) ? frame.method : "unknown";
+    const method = ["service/hello", ...READS, ...WRITES, ...PROJECTS].includes(frame.method) ? frame.method : "unknown";
     const now = (this.opts.now ?? Date.now)();
     this.tokens = Math.min(50, this.tokens + Math.max(0, now - this.last) * .05); this.last = now;
     if (this.tokens < 1 || this.active >= 4) {
@@ -78,6 +96,10 @@ export class ServiceHandler {
       return notification ? null : response;
     } catch (error) {
       if (error instanceof ServiceFrameError) throw error;
+      if (error instanceof LocalError && PROJECTS.includes(frame.method)) {
+        this.opts.onRequest?.(method, SERVICE_PROJECT_REFUSED);
+        return this.closed || notification ? null : JSON.stringify({ jsonrpc: "2.0", id: frame.id, error: { code: SERVICE_PROJECT_REFUSED, message: error.code } });
+      }
       const code = error instanceof ServiceError ? error.code : ["ENOENT", "ENOTDIR"].includes((error as NodeJS.ErrnoException).code ?? "") ? -32012 : -32010;
       this.opts.onRequest?.(method, code);
       return this.closed || notification ? null : this.error(frame.id, code);
@@ -87,7 +109,14 @@ export class ServiceHandler {
   private async dispatch(method: string, params: unknown): Promise<object> {
     if (method === "service/hello") {
       if (params !== undefined && (!object(params) || Object.keys(params).length)) throw new ServiceError(-32602);
-      return { agent: "sunmoon-agent", version: this.opts.version, roots: [...this.opts.roots()], libraryDir: null, capabilities: [SERVICE_CAPABILITY, ...(this.runsWritable ? [SERVICE_RUNS_CAPABILITY] : [])] };
+      return { agent: "sunmoon-agent", version: this.opts.version, roots: [...this.opts.roots()], libraryDir: null, capabilities: [SERVICE_CAPABILITY, ...(this.runsWritable ? [SERVICE_RUNS_CAPABILITY] : []), ...(this.opts.projects ? [SERVICE_PROJECTS_CAPABILITY] : [])] };
+    }
+    if (PROJECTS.includes(method)) {
+      if (!this.opts.projects) throw new ServiceError(-32601);
+      if (!object(params) || Object.keys(params).some(k => !(method === "projects/folder" ? ["path"] : ["url", "path", "auth"]).includes(k))) throw new ServiceError(-32602);
+      if (method === "projects/folder") return this.opts.projects.folder(params.path);
+      const controller = new AbortController(); this.aborts.add(controller);
+      try { return await this.opts.projects.clone(params, controller.signal); } finally { this.aborts.delete(controller); }
     }
     if (WRITES.includes(method)) {
       if (!this.runsWritable) throw new ServiceError(-32601);

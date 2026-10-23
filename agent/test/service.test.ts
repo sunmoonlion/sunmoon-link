@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ServiceHandler, ServiceFrameError, SERVICE_MAX_FRAME, SERVICE_MAX_READ } from "../src/service.js";
+import { LocalError } from "../src/localFiles.js";
 
 let base: string, root: string, handler: ServiceHandler;
 const rpc = async (method: string, params?: object, h = handler, id = 1) => JSON.parse((await h.receive(JSON.stringify({ jsonrpc: "2.0", id, method, ...(params ? { params } : {}) })))!);
@@ -143,5 +144,47 @@ describe("service-runs-v1 on the test computer (ledger 129)", () => {
     expect((await rpc("service/hello", undefined, w)).result.capabilities).toEqual(["service-v1"]);
     expect((await rpc("fs/createDirectory", { path: path.join(runs(), "x") }, w)).error.code).toBe(-32601);
     await w.close();
+  });
+});
+
+describe("projects over the service stream (ledger 165)", () => {
+  it("offers projects/folder and projects/clone only with a LocalProjects, passing its refusals by code", async () => {
+    const calls: unknown[] = [];
+    let seenSignal: AbortSignal | undefined;
+    const projects = {
+      folder: async (input: unknown) => { calls.push(["folder", input]); return { path: String(input), created: true }; },
+      clone: async (body: { url?: unknown; path?: unknown; auth?: unknown }, signal?: AbortSignal) => {
+        calls.push(["clone", body]); seenSignal = signal;
+        if (!body.auth) throw new LocalError(401, "auth_required");
+        return { path: String(body.path), branch: "main" };
+      },
+    };
+    const h = new ServiceHandler({ version: "0.5.2", roots: () => [root], configDir: path.join(base, "config"), codexHome: path.join(base, "home"), platform: "linux", projects });
+    expect((await rpc("service/hello", undefined, h)).result.capabilities).toEqual(["service-v1", "service-projects-v1"]);
+    expect((await rpc("service/hello")).result.capabilities).toEqual(["service-v1"]);
+    expect((await rpc("projects/folder", { path: path.join(root, "p1") })).error.code).toBe(-32601);
+    expect((await rpc("projects/folder", { path: path.join(root, "p1") }, h)).result).toEqual({ path: path.join(root, "p1"), created: true });
+    const target = path.join(root, "repo");
+    expect((await rpc("projects/clone", { url: "https://github.com/a/b", path: target }, h)).error).toEqual({ code: -32020, message: "auth_required" });
+    expect((await rpc("projects/clone", { url: "https://github.com/a/b", path: target, auth: { token: "t" } }, h)).result).toEqual({ path: target, branch: "main" });
+    expect(seenSignal).toBeInstanceOf(AbortSignal);
+    for (const params of [{ path: target, extra: 1 }, { url: "x", path: target, sandbox: null }]) {
+      expect((await rpc(params.hasOwnProperty("url") ? "projects/clone" : "projects/folder", params, h)).error.code).toBe(-32602);
+    }
+    expect(calls.length).toBe(3);
+    await h.close();
+  });
+  it("aborts a clone in flight when the stream closes", async () => {
+    let aborted = false;
+    const projects = {
+      folder: async () => ({}),
+      clone: (_body: object, signal?: AbortSignal) => new Promise<object>((_, reject) => { signal?.addEventListener("abort", () => { aborted = true; reject(new LocalError(499, "aborted")); }); }),
+    };
+    const h = new ServiceHandler({ version: "0.5.2", roots: () => [root], configDir: path.join(base, "config"), codexHome: path.join(base, "home"), platform: "linux", projects });
+    const pending = h.receive(JSON.stringify({ jsonrpc: "2.0", id: 7, method: "projects/clone", params: { url: "https://h/a/b", path: path.join(root, "r") } }));
+    await new Promise(resolve => setTimeout(resolve, 10));
+    await h.close();
+    expect(await pending).toBeNull();
+    expect(aborted).toBe(true);
   });
 });
