@@ -2,6 +2,9 @@
 // 第一层授读（0.155.1 setup.rs `profile_read_roots`，0.164 未变）；%LOCALAPPDATA%\Programs 这类带保护 ACL、断了继承的
 // 子目录就读不到，本地 link 自己的 node.exe 与用户装在那里的 Python 都起不来（2026-10-23 所有者 Windows 实测：
 // CreateProcessAsUserW 5）。所以由本地 link 照 Codex 的做法补授：只授读与执行、子项继承，先查后授。
+// 只认实打实的目录（Astra 评审 D01）：从用户目录到目标逐级 lstat，有一级是符号链接或目录联接（junction）就不授；
+// 再用 realpath 核实际目标就是这个路径本身（大小写、8.3 短名、别名对不上的也不授）。icacls 带 /L，万一核过之后
+// 被换成联接，改的也只是联接自己、不跟到目标；授之前再核一遍，把这段空档压到最短。
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -13,17 +16,43 @@ const PROFILE_EXCLUSIONS = [".ssh", ".tsh", ".brev", ".gnupg", ".aws", ".azure",
 const key = (p: string) => path.win32.resolve(p).toLowerCase();
 const inside = (child: string, parent: string) => key(child) === key(parent) || key(child).startsWith(key(parent).replace(/\\$/, "") + "\\");
 
+export interface FileChecks {
+  isDirectory: (p: string) => boolean;
+  /** 这一级本身是符号链接或目录联接（lstat，不跟随）。 */
+  isLink: (p: string) => boolean;
+  /** 实际目标（跟随所有链接）；取不到回 null。 */
+  realpath: (p: string) => string | null;
+}
+
+export const fileChecks: FileChecks = {
+  isDirectory: p => { try { return fs.statSync(p).isDirectory(); } catch { return false; } },
+  isLink: p => { try { return fs.lstatSync(p).isSymbolicLink(); } catch { return true; } },
+  realpath: p => { try { return fs.realpathSync.native(p); } catch { return null; } },
+};
+
+/** 从 profile 到 p（都含）每一级都不是链接，且 p 的实际目标就是 p 本身。 */
+export function plainDirectory(p: string, profile: string, checks: FileChecks = fileChecks): boolean {
+  const steps = path.win32.relative(profile, p).split("\\").filter(Boolean);
+  let at = path.win32.resolve(profile);
+  for (const step of ["", ...steps]) {
+    at = step ? path.win32.join(at, step) : at;
+    if (checks.isLink(at)) return false;
+  }
+  const real = checks.realpath(p);
+  return real !== null && key(real) === key(p) && checks.isDirectory(p);
+}
+
 export interface SandboxReadInput {
   profile: string;
   programs: readonly string[];
   pathEnv: string;
   privateDirs: readonly string[];
-  isDirectory?: (p: string) => boolean;
+  checks?: FileChecks;
 }
 
 /** 要补授读的目录：本地 link 自己的程序目录与 PATH 里的目录，只取用户目录之下的（别处 Codex 已授或本来可读）。 */
 export function sandboxReadTargets(input: SandboxReadInput): string[] {
-  const isDirectory = input.isDirectory ?? ((p: string) => { try { return fs.statSync(p).isDirectory(); } catch { return false; } });
+  const checks = input.checks ?? fileChecks;
   const seen = new Set<string>(); const out: string[] = [];
   for (const raw of [...input.programs, ...input.pathEnv.split(";")]) {
     const entry = raw.trim().replace(/^"(.*)"$/, "$1");
@@ -33,7 +62,7 @@ export function sandboxReadTargets(input: SandboxReadInput): string[] {
     const first = path.win32.relative(input.profile, p).split("\\")[0].toLowerCase();
     if (PROFILE_EXCLUSIONS.includes(first)) continue;
     if (input.privateDirs.some(d => inside(p, d) || inside(d, p))) continue;
-    if (seen.has(key(p)) || !isDirectory(p)) continue;
+    if (seen.has(key(p)) || !plainDirectory(p, input.profile, checks)) continue;
     seen.add(key(p)); out.push(p);
   }
   return out;
@@ -57,12 +86,14 @@ const icacls: Icacls = args => {
 
 export interface SandboxReadResult { granted: string[]; present: string[]; failed: string[] }
 
-export function grantSandboxRead(targets: readonly string[], run: Icacls = icacls): SandboxReadResult {
+/** still：授之前再核一遍这个目录还是实打实的（见文件头）；变了的记进 failed。 */
+export function grantSandboxRead(targets: readonly string[], run: Icacls = icacls, still: (target: string) => boolean = () => true): SandboxReadResult {
   const result: SandboxReadResult = { granted: [], present: [], failed: [] };
   for (const target of targets) {
-    const current = run([target]);
+    const current = run([target, "/L"]);
     if (current.status === 0 && sandboxGroupCanRead(current.stdout)) { result.present.push(target); continue; }
-    const grant = run([target, "/grant", `${SANDBOX_GROUP}:(OI)(CI)(RX)`]);
+    if (!still(target)) { result.failed.push(target); continue; }
+    const grant = run([target, "/grant", `${SANDBOX_GROUP}:(OI)(CI)(RX)`, "/L"]);
     (grant.status === 0 ? result.granted : result.failed).push(target);
   }
   return result;
