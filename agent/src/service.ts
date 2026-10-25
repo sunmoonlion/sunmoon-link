@@ -123,7 +123,9 @@ export class ServiceHandler {
       if (!object(params) || Object.keys(params).some(k => !(method === "projects/folder" ? ["path"] : ["url", "path", "auth"]).includes(k))) throw new ServiceError(-32602);
       if (method === "projects/folder") return this.opts.projects.folder(params.path);
       const controller = new AbortController(); this.aborts.add(controller);
-      try { return await this.opts.projects.clone(params, controller.signal); } finally { this.aborts.delete(controller); }
+      // A token sent from another computer is used once and never stored (Fable review P1-4): drop "remember".
+      const auth = object(params.auth) ? (({ remember: _, ...rest }) => rest)(params.auth) : params.auth;
+      try { return await this.opts.projects.clone({ ...params, auth }, controller.signal); } finally { this.aborts.delete(controller); }
     }
     if (WRITES.includes(method)) {
       if (!this.runsWritable) throw new ServiceError(-32601);

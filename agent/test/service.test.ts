@@ -226,11 +226,14 @@ describe("projects over the service stream (ledger 165)", () => {
     const target = path.join(root, "repo");
     expect((await rpc("projects/clone", { url: "https://github.com/a/b", path: target }, h)).error).toEqual({ code: -32020, message: "auth_required" });
     expect((await rpc("projects/clone", { url: "https://github.com/a/b", path: target, auth: { token: "t" } }, h)).result).toEqual({ path: target, branch: "main" });
+    // A token sent from another computer is never remembered here (Fable review P1-4)
+    await rpc("projects/clone", { url: "https://github.com/a/b", path: target, auth: { token: "t", remember: true } }, h);
+    expect(calls.at(-1)).toEqual(["clone", { url: "https://github.com/a/b", path: target, auth: { token: "t" } }]);
     expect(seenSignal).toBeInstanceOf(AbortSignal);
     for (const params of [{ path: target, extra: 1 }, { url: "x", path: target, sandbox: null }]) {
       expect((await rpc(params.hasOwnProperty("url") ? "projects/clone" : "projects/folder", params, h)).error.code).toBe(-32602);
     }
-    expect(calls.length).toBe(3);
+    expect(calls.length).toBe(4);
     await h.close();
   });
   it("aborts a clone in flight when the stream closes", async () => {
