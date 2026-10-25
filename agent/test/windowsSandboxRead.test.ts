@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { denySandboxRead, grantSandboxRead, plainDirectory, sandboxGroupCanRead, sandboxGroupDenied, sandboxReadTargets, type FileChecks, type Icacls } from "../src/windowsSandboxRead.js";
+import { denySandboxRead, grantSandboxRead, plainDirectory, sandboxGroupCanRead, sandboxGroupDenied, sandboxReadTargets, type FileChecks, type Icacls, helperProgramDirectories } from "../src/windowsSandboxRead.js";
 
 const profile = "C:\\Users\\zymun";
 const dirs = new Set([
@@ -29,6 +29,13 @@ const fake = (links: Record<string, string> = {}, extraDirs: string[] = []): Fil
 };
 
 describe("提权模式补授读的目录（windowsSandboxRead）", () => {
+  it("本地 link 的程序目录含安装根目录：Node 启动时逐级 realpath，少了它 helper 起不来（账 176）", () => {
+    expect(helperProgramDirectories({ node: "C:\\Users\\zymun\\AppData\\Local\\Programs\\sunmoon-link\\node\\node.exe", script: "C:\\Users\\zymun\\AppData\\Local\\Programs\\sunmoon-link\\app\\native\\helper.mjs" })).toEqual([
+      "C:\\Users\\zymun\\AppData\\Local\\Programs\\sunmoon-link",
+      "C:\\Users\\zymun\\AppData\\Local\\Programs\\sunmoon-link\\node",
+      "C:\\Users\\zymun\\AppData\\Local\\Programs\\sunmoon-link\\app",
+    ]);
+  });
   it("取本地 link 的程序目录与用户目录下 PATH 里的目录；去重、不分大小写", () => {
     const targets = sandboxReadTargets({
       profile,

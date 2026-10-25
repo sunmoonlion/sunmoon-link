@@ -2,7 +2,7 @@
   "schema": 1,
   "platform": "linux",
   "architecture": "x64",
-  "agentVersion": "0.5.2",
+  "agentVersion": "0.5.3",
   "codexVersion": "0.155.1",
   "relayProtocol": 1,
   "node": {

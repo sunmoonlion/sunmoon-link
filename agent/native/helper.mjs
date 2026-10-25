@@ -117,7 +117,9 @@ if (process.argv[2] === '--pin-directory') {
   }
   function metadata(p) {
     policy(p);
-    return inDirectory(path.dirname(p), () => { const s = info(p); return { isDirectory: s.isDirectory(), isFile: s.isFile(), isSymlink: false, size: s.size, createdAtMs: Math.trunc(s.birthtimeMs), modifiedAtMs: Math.trunc(s.mtimeMs) }; });
+    // 白名单根本身：进它自己核身份。它的上级（用户目录）沙箱账户进不去（账 177）
+    const inspectFrom = cfg.reads.some(r => normal(r) === normal(p)) ? p : path.dirname(p);
+    return inDirectory(inspectFrom, () => { const s = info(p); return { isDirectory: s.isDirectory(), isFile: s.isFile(), isSymlink: false, size: s.size, createdAtMs: Math.trunc(s.birthtimeMs), modifiedAtMs: Math.trunc(s.mtimeMs) }; });
   }
   function walk(p, o) {
     if (!o || ['maxDepth', 'maxDirectories', 'maxEntries'].some(k => !Number.isSafeInteger(o[k]) || o[k] < 0) || o.maxDepth > 128 || o.maxDirectories > 10000 || o.maxEntries > 10000 || o.followDirectorySymlinks) throw new Error('walk bounds refused');

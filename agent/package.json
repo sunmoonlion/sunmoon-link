@@ -1,6 +1,6 @@
 {
   "name": "@sunmoon/agent",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "SunMoonAI 本地代理：包 codex exec-server、出站连会合点、守本地上限",
   "private": true,
   "packageManager": "pnpm@10.24.0",

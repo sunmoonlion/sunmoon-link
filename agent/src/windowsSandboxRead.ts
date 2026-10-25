@@ -42,6 +42,11 @@ export function plainDirectory(p: string, profile: string, checks: FileChecks = 
   return real !== null && key(real) === key(p) && checks.isDirectory(p);
 }
 
+/** 本地 link 自己要授读的程序目录：安装根目录（Node 启动时逐级 realpath 到它，账 176）、node 目录、app 目录。 */
+export function helperProgramDirectories(helper: { node: string; script: string }): string[] {
+  return [path.win32.dirname(path.win32.dirname(helper.node)), path.win32.dirname(helper.node), path.win32.dirname(path.win32.dirname(helper.script))];
+}
+
 export interface SandboxReadInput {
   profile: string;
   programs: readonly string[];

@@ -203,7 +203,12 @@ export async function setupElevated(): Promise<object> {
   if(await residentAlive()) throw new Error("Stop the agent before optional sandbox setup");
   const cfg=loadConfig(); assertWindowsHome(cfg.codexHome,cfg.roots);
   await desktopRequest("setup",{codex:locateCodex().codexBin,home:cfg.codexHome},undefined,300000);
-  cfg.windowsSandbox=await detectWindowsSandbox(cfg.codexHome,cfg.roots);
+  // 刚设置完第一次探测可能还不通（账 174：弹窗报失败，重启后却是提权模式）：隔两秒再探，最多三次，再定结论
+  for (let attempt = 1; ; attempt++) {
+    cfg.windowsSandbox = await detectWindowsSandbox(cfg.codexHome, cfg.roots);
+    if (cfg.windowsSandbox.elevatedUsable || attempt >= 3) break;
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
   if(!cfg.windowsSandbox.elevatedUsable) throw new Error("Setup did not produce a usable elevated sandbox; previous configuration is retained");
   saveConfig(cfg);return {windowsSandbox:cfg.windowsSandbox};
 }

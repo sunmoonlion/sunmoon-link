@@ -8,7 +8,7 @@ import { log } from "./log.js";
 import { locateCodex } from "./paths.js";
 import { freeLoopbackPort, waitForPort } from "./execServer.js";
 import { assertWindowsHome, locateWindowsHelper, killWindowsTree, runSandboxProbe, windowsEnvironment, WindowsTemporary, type WindowsHelper, type WindowsMode } from "./windowsRuntime.js";
-import { denySandboxRead, grantSandboxRead, plainDirectory, sandboxReadTargets, type SandboxReadResult } from "./windowsSandboxRead.js";
+import { denySandboxRead, grantSandboxRead, helperProgramDirectories, plainDirectory, sandboxReadTargets, type SandboxReadResult } from "./windowsSandboxRead.js";
 
 export interface WindowsCapability {
   mode: WindowsMode;
@@ -33,7 +33,7 @@ export async function ensureWindowsSandbox(
 /** 提权模式起命令前补授读：本地 link 自己的 node 与 app 目录、用户目录下 PATH 里的程序目录（见 windowsSandboxRead.ts）。 */
 export function prepareElevatedReads(home: string, helper: WindowsHelper, env: NodeJS.ProcessEnv = process.env): SandboxReadResult {
   const profile = env.USERPROFILE ?? os.homedir();
-  const targets = sandboxReadTargets({ profile, programs: [path.dirname(helper.node), path.dirname(path.dirname(helper.script))], pathEnv: env.PATH ?? "", privateDirs: [home, CONFIG_DIR] });
+  const targets = sandboxReadTargets({ profile, programs: helperProgramDirectories(helper), pathEnv: env.PATH ?? "", privateDirs: [home, CONFIG_DIR] });
   const result = grantSandboxRead(targets, undefined, target => plainDirectory(target, profile));
   log(result.failed.length ? "warn" : "info", "elevated sandbox read grants", { granted: result.granted.length, present: result.present.length, failed: result.failed });
   // Tokens the sandbox must never read, even though Codex grants the first level of the profile (Fable review P2-12)
@@ -62,7 +62,7 @@ export async function detectWindowsSandbox(home: string, roots: readonly string[
     if (elevatedSetupForHome) prepareElevatedReads(home, helper);
     // No automatic setup or elevation. An existing setup is usable only if an
     // actual process can be launched under it from THIS isolated CODEX_HOME.
-    const elevatedUsable = elevatedSetupForHome && await runSandboxProbe(url, home, cwd, "elevated", temporary.directory).catch(() => false);
+    const elevatedUsable = elevatedSetupForHome && await runSandboxProbe(url, home, cwd, "elevated", temporary.directory).catch((error: Error) => { log("warn", "elevated sandbox probe failed", { why: error.message }); return false; });
     const mode: WindowsMode = elevatedUsable ? "elevated" : "unelevated";
     if (!elevatedUsable && !await runSandboxProbe(url, home, cwd, "unelevated", temporary.directory)) throw new Error("No usable Windows sandbox; init refused");
     fs.writeFileSync(config, `sandbox_mode="read-only"\napproval_policy="never"\n[windows]\nsandbox="${mode}"\n`, { mode: 0o600 });
