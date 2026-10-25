@@ -167,6 +167,17 @@ describe("service-runs-v1 on the test computer (ledger 129)", () => {
     fs.rmSync(runs(), { recursive: true });
     expect((await rpc("fs/remove", { path: mine }, runsHandler)).result).toEqual({});
   });
+  it.skipIf(process.getuid?.() === 0)("removes read-only folders a test left, without touching what links point to", async () => {
+    // Fable review P1-3: a 0555 folder inside runs/<name> made rm fail with EACCES and every later test stuck
+    const mine = path.join(runs(), "20261024-ro"), outside = path.join(base, "outside-ro");
+    fs.mkdirSync(path.join(mine, "cache", "mod"), { recursive: true }); fs.writeFileSync(path.join(mine, "cache", "mod", "a.js"), "x");
+    fs.mkdirSync(outside, { recursive: true }); fs.symlinkSync(outside, path.join(mine, "cache", "link"));
+    for (const dir of [path.join(mine, "cache", "mod"), path.join(mine, "cache"), outside]) fs.chmodSync(dir, 0o555);
+    expect((await rpc("fs/remove", { path: mine }, runsHandler)).result).toEqual({});
+    expect(fs.existsSync(mine)).toBe(false);
+    expect(fs.statSync(outside).mode & 0o777).toBe(0o555); // the link was removed, its destination left alone
+    fs.chmodSync(outside, 0o755);
+  });
   it("refuses anything that is not exactly <root>/runs/<name>", async () => {
     fs.mkdirSync(runs());
     for (const target of [root, runs(), path.join(root, "other", "x"), path.join(runs(), "a", "b"), path.join(runs(), "bad name"), path.join(runs(), ".."), path.join(base, "runs", "x"), path.join(root + "-sibling", "runs", "x")]) {

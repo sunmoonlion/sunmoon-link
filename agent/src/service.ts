@@ -227,7 +227,15 @@ export class ServiceHandler {
       if (!fs.existsSync(runs)) return {};
       this.inspect(runs);
       // rm never follows links: a link Codex left in runs/ is removed itself, not its destination.
-      fs.rmSync(target, { recursive: true, force: true });
+      try {
+        fs.rmSync(target, { recursive: true, force: true });
+      } catch (error) {
+        if (!["EACCES", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
+        // A test left read-only folders (module caches, chmod -R a-w): give our own folders back
+        // u+rwx, without following links, then remove. Otherwise every later test is stuck.
+        makeRemovable(target);
+        fs.rmSync(target, { recursive: true, force: true });
+      }
       return {};
     }
     if (!fs.existsSync(runs)) fs.mkdirSync(runs);
@@ -244,5 +252,15 @@ export class ServiceHandler {
       if (s.isSymbolicLink() || (!s.isDirectory() && (!s.isFile() || s.nlink !== 1)) || fs.realpathSync.native(p) !== p) throw new ServiceError(-32010);
       const parent = path.dirname(p); if (parent === p) break; p = parent;
     }
+  }
+}
+
+/** Add u+rwx to a directory and every directory under it; links and files are left alone (lstat, never followed). */
+export function makeRemovable(dir: string): void {
+  const stat = fs.lstatSync(dir);
+  if (!stat.isDirectory()) return;
+  fs.chmodSync(dir, (stat.mode & 0o7777) | 0o700);
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) makeRemovable(path.join(dir, entry.name));
   }
 }
