@@ -98,3 +98,30 @@ export function grantSandboxRead(targets: readonly string[], run: Icacls = icacl
   }
   return result;
 }
+
+/** icacls 列出的 ACL 里，沙箱组已被显式拒绝读。 */
+export function sandboxGroupDenied(icaclsOutput: string): boolean {
+  return icaclsOutput.split(/\r?\n/).some(line => {
+    const at = line.indexOf(`${SANDBOX_GROUP}:`);
+    return at >= 0 && line.slice(at).includes("(DENY)") && /\((R|RX|F|M)\)/.test(line.slice(at));
+  });
+}
+
+export interface SandboxDenyResult { denied: string[]; present: string[]; failed: string[] }
+
+/**
+ * 控制文件对沙箱组显式拒绝读（Fable 评审 P2-12）：Codex 给用户目录第一层逐项授读，带到 .sunmoon-link（会合点令牌
+ * 在 config.json）与 .codex（auth.json）。显式拒绝压过继承来的允许；只拒读这几个文件，目录照旧（沙箱可能要读
+ * 目录里别的东西）。不在的文件跳过；查与改都带 /L，不跟链接。
+ */
+export function denySandboxRead(files: readonly string[], run: Icacls = icacls, exists: (p: string) => boolean = p => { try { return fs.lstatSync(p).isFile(); } catch { return false; } }): SandboxDenyResult {
+  const result: SandboxDenyResult = { denied: [], present: [], failed: [] };
+  for (const file of files) {
+    if (!exists(file)) continue;
+    const current = run([file, "/L"]);
+    if (current.status === 0 && sandboxGroupDenied(current.stdout)) { result.present.push(file); continue; }
+    const deny = run([file, "/deny", `${SANDBOX_GROUP}:(R)`, "/L"]);
+    (deny.status === 0 ? result.denied : result.failed).push(file);
+  }
+  return result;
+}

@@ -8,7 +8,7 @@ import { log } from "./log.js";
 import { locateCodex } from "./paths.js";
 import { freeLoopbackPort, waitForPort } from "./execServer.js";
 import { assertWindowsHome, locateWindowsHelper, killWindowsTree, runSandboxProbe, windowsEnvironment, WindowsTemporary, type WindowsHelper, type WindowsMode } from "./windowsRuntime.js";
-import { grantSandboxRead, plainDirectory, sandboxReadTargets, type SandboxReadResult } from "./windowsSandboxRead.js";
+import { denySandboxRead, grantSandboxRead, plainDirectory, sandboxReadTargets, type SandboxReadResult } from "./windowsSandboxRead.js";
 
 export interface WindowsCapability {
   mode: WindowsMode;
@@ -36,6 +36,9 @@ export function prepareElevatedReads(home: string, helper: WindowsHelper, env: N
   const targets = sandboxReadTargets({ profile, programs: [path.dirname(helper.node), path.dirname(path.dirname(helper.script))], pathEnv: env.PATH ?? "", privateDirs: [home, CONFIG_DIR] });
   const result = grantSandboxRead(targets, undefined, target => plainDirectory(target, profile));
   log(result.failed.length ? "warn" : "info", "elevated sandbox read grants", { granted: result.granted.length, present: result.present.length, failed: result.failed });
+  // Tokens the sandbox must never read, even though Codex grants the first level of the profile (Fable review P2-12)
+  const denied = denySandboxRead([CONFIG_PATH, path.join(CONFIG_DIR, "mcp.json"), path.join(home, "auth.json"), path.join(profile, ".codex", "auth.json")]);
+  log(denied.failed.length ? "warn" : "info", "elevated sandbox read denials", { denied: denied.denied.length, present: denied.present.length, failed: denied.failed });
   return result;
 }
 

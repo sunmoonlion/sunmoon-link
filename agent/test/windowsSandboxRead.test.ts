@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { grantSandboxRead, plainDirectory, sandboxGroupCanRead, sandboxReadTargets, type FileChecks, type Icacls } from "../src/windowsSandboxRead.js";
+import { denySandboxRead, grantSandboxRead, plainDirectory, sandboxGroupCanRead, sandboxGroupDenied, sandboxReadTargets, type FileChecks, type Icacls } from "../src/windowsSandboxRead.js";
 
 const profile = "C:\\Users\\zymun";
 const dirs = new Set([
@@ -106,5 +106,24 @@ describe("沙箱组读权限的判断与授予", () => {
     };
     expect(grantSandboxRead(["A", "B", "C"], run)).toEqual({ granted: ["B"], present: ["A"], failed: ["C"] });
     expect(calls).toEqual([["A", "/L"], ["B", "/L"], ["B", "/grant", "CodexSandboxUsers:(OI)(CI)(RX)", "/L"], ["C", "/L"], ["C", "/grant", "CodexSandboxUsers:(OI)(CI)(RX)", "/L"]]);
+  });
+});
+
+describe("控制文件对沙箱组拒绝读（Fable 评审 P2-12）", () => {
+  it("认出已有的显式拒绝；只有允许的不算", () => {
+    expect(sandboxGroupDenied("C:\\x zymun\\CodexSandboxUsers:(DENY)(R)\r\n")).toBe(true);
+    expect(sandboxGroupDenied("C:\\x zymun\\CodexSandboxUsers:(I)(RX)\n")).toBe(false);
+    expect(sandboxGroupDenied("C:\\x BUILTIN\\Users:(DENY)(R)\n")).toBe(false);
+  });
+  it("在的文件才拒；已拒的不重复；查与改都带 /L", () => {
+    const calls: string[][] = [];
+    const run: Icacls = args => {
+      calls.push(args);
+      if (args.length === 2) return { status: 0, stdout: args[0] === "A" ? "A zymun\\CodexSandboxUsers:(DENY)(R)" : `${args[0]} zymun\\CodexSandboxUsers:(I)(RX)` };
+      return { status: args[0] === "C" ? 5 : 0, stdout: "" };
+    };
+    const exists = (p: string) => p !== "missing";
+    expect(denySandboxRead(["A", "B", "C", "missing"], run, exists)).toEqual({ denied: ["B"], present: ["A"], failed: ["C"] });
+    expect(calls).toEqual([["A", "/L"], ["B", "/L"], ["B", "/deny", "CodexSandboxUsers:(R)", "/L"], ["C", "/L"], ["C", "/deny", "CodexSandboxUsers:(R)", "/L"]]);
   });
 });
