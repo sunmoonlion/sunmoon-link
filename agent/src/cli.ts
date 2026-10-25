@@ -9,7 +9,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import os from "node:os";
-import { CONFIG_DIR, CONFIG_PATH, defaultConfig, ensureDeviceId, loadConfig, saveConfig, type AgentConfig } from "./config.js";
+import { CONFIG_DIR, CONFIG_PATH, defaultConfig, ensureDeviceId, loadConfig, priorDeviceId, saveConfig, type AgentConfig } from "./config.js";
 import { ExecServer } from "./execServer.js";
 import { log, registerSecret, configureWindowsLogs, safeData } from "./log.js";
 import { locateCodex } from "./paths.js";
@@ -89,6 +89,7 @@ async function main(argv: string[]): Promise<number> {
     const port = arg("--port", argv); if (port) cfg.execPort = Number(port);
     if (argv.includes("--no-outer-sandbox") && process.platform !== "win32") cfg.outerSandbox = false;
     if (process.platform === "win32") { cfg.windowsSandbox = await detectWindowsSandbox(cfg.codexHome, cfg.roots); console.log(`Windows sandbox: ${cfg.windowsSandbox.mode} (real process/start verified)`); }
+    cfg.deviceId = priorDeviceId(); // a re-init keeps the device id the workbench already knows
     ensureDeviceId(cfg);
     saveConfig(cfg);
     console.log(`已写 ${CONFIG_PATH}`);

@@ -63,6 +63,14 @@ export function defaultConfig(): AgentConfig {
   };
 }
 
+/** 原来配置里的设备编号：init 重写配置时留着它，不然工作台上项目挂在一台永远离线的老记录上（Fable review P2-15）。读不了、不合法就没有。 */
+export function priorDeviceId(file = CONFIG_PATH): string | undefined {
+  try {
+    const id = JSON.parse(fs.readFileSync(file, "utf8"))?.deviceId;
+    return typeof id === "string" && DEVICE_ID.test(id) ? id : undefined;
+  } catch { return undefined; }
+}
+
 export function loadConfig(file = CONFIG_PATH): AgentConfig {
   if (!fs.existsSync(file)) throw new Error(`没有配置：${file}（先跑 sunmoon-link init）`);
   let raw: any;
