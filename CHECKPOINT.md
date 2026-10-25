@@ -1,5 +1,11 @@
 # CHECKPOINT（runtime 仓，分支 fable）
 
+## 当前：0.5.3 提权模式三处修正——安装根目录授权、工作区本身建项目、「提高安全」重探（2026-10-25）
+
+起因：所有者在 knowbench「专家 → 新建项目」报「本地 link 那头没做成」。在那台电脑上复现：提权模式下 `WindowsFiles` 起 `native/helper.mjs` 时，Node 逐级 realpath 到 `Programs\sunmoon-link` 这一层 `EPERM`（只授了 `node`、`app` 两个子目录，账 176）；补授后目录留空（= 工作区本身）又报 `outside_whitelist`：helper 查目录先进上级，白名单根的上级是用户目录，沙箱账户进不去（账 177）；另外「提高安全」弹窗报失败但重启后已是提权模式（账 174）。
+
+改法：`helperProgramDirectories` 把安装根目录加进补授读；helper 对白名单根本身进它自己核身份；`setupElevated` 探测失败隔两秒再探，最多三次，探测异常记 `why`。版本 0.5.3，`b398c1d`；Windows zip `cf0e0b85…`、Linux tarball `d93bfc54…` 已上传，knowbench 发行配置已指过去。Linux 359 通过（新增 1）。Windows 实机：所有者电脑用 `icacls` 手工补授后新建子目录项目成功；0.5.3 装上后再验「留空」与「提高安全」。
+
 ## 当前：0.4.1 新建项目——回环口建文件夹、拉取 git 仓库（0024 段 1，远程实现，Windows 待验，2026-10-14）
 
 起因：现网新建项目只在工作台登记路径，电脑上没有那个文件夹，工作对话写文件时代理反复报工作目录不存在、模型转去请求提权。设计 `k8s/.../SDD/modules/0024-new-project.md`。
