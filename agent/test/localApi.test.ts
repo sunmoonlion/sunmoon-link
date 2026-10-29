@@ -38,7 +38,7 @@ describe("local file HTTP API", () => {
       expect((await request(route, { Origin: origin })).status).toBe(401);
     }
     const info = await request("/local/v1/info");
-    expect(JSON.parse(info.body.toString())).toEqual({ agent: "sunmoon-agent", version: "0.4.0", userId: "probe-user", roots: [root], libraryDir: null, lastSettingsChange: null, capabilities: ["local-fs-v1"] });
+    expect(JSON.parse(info.body.toString())).toEqual({ agent: "sunmoon-agent", version: "0.4.0", userId: "probe-user", roots: [root], lastSettingsChange: null, capabilities: ["local-fs-v1"] });
   });
   it("rejects wrong-sub/aud, expired and corrupt tickets as 401; key outage is 503", async () => {
     for (const claims of [{ sub: "other" }, { aud: "relay" }, { exp: 1 }]) expect((await request("/local/v1/info", { Origin: origin, Authorization: "Bearer " + fixture.token(claims) })).status).toBe(401);

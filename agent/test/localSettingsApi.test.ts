@@ -33,7 +33,7 @@ afterEach(async () => { await endpoint.close(); await fixture.close(); fs.rmSync
 describe("settings HTTP contract", () => {
   it("GET exposes the same public settings as tray and info", async () => {
     const res = await request(); expect(res.status).toBe(200);
-    expect(res.body).toEqual({ machineName: cfg.machineName, roots: [root], rootChoices: [root, other], ceiling: cfg.ceiling, autostart: false, libraryDir: null, lastSettingsChange: null, version: "0.4.0" });
+    expect(res.body).toEqual({ machineName: cfg.machineName, roots: [root], rootChoices: [root, other], ceiling: cfg.ceiling, autostart: false, lastSettingsChange: null, version: "0.4.0" });
     expect(JSON.stringify(res.body)).not.toContain(cfg.token);
   });
   it("authenticates writes and provides matching-origin PUT preflight", async () => {

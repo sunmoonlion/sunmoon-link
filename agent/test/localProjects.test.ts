@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Ceiling } from "../src/filter.js";
 import { LocalProjects, ONE_SHOT_HELPER, cloneFailure, cloneUrl } from "../src/localProjects.js";
 
-let base: string, root: string, library: string, fake: string, ceiling: Ceiling;
+let base: string, root: string, guarded: string, fake: string, ceiling: Ceiling;
 const FAKE = `#!/bin/sh
 dir="$FAKE_GIT_DIR"
 printf 'ARGS %s\\n' "$*" >> "$dir/log"
@@ -28,15 +28,15 @@ esac
 const mode = (value: string) => fs.writeFileSync(path.join(fake, "mode"), value);
 const log = () => fs.readFileSync(path.join(fake, "log"), "utf8");
 const projects = (extra: Partial<ConstructorParameters<typeof LocalProjects>[0]> = {}) =>
-  new LocalProjects({ roots: () => [root], denied: () => [library], ceiling: () => ceiling, platform: "linux", git: path.join(fake, "git"), ...extra });
+  new LocalProjects({ roots: () => [root], denied: () => [guarded], ceiling: () => ceiling, platform: "linux", git: path.join(fake, "git"), ...extra });
 // Linux 路径与 #!/bin/sh 假 git 的夹具：Windows 上的同样场景由 test/local-project-windows-probe.mjs 真机覆盖（0024 段 2）
 const onWindows = process.platform === "win32";
 const code = (promise: Promise<unknown>) => promise.then(() => "ok", (error: { code?: string }) => error.code);
 
 beforeEach(() => {
   base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "sunmoon-projects-")));
-  root = path.join(base, "root"); library = path.join(root, "library"); fake = path.join(base, "fake");
-  fs.mkdirSync(library, { recursive: true }); fs.mkdirSync(fake);
+  root = path.join(base, "root"); guarded = path.join(root, "guarded"); fake = path.join(base, "fake");
+  fs.mkdirSync(guarded, { recursive: true }); fs.mkdirSync(fake);
   fs.writeFileSync(path.join(fake, "git"), FAKE, { mode: 0o755 }); mode("ok");
   process.env.FAKE_GIT_DIR = fake; ceiling = { sandbox: "workspace-write", network: false };
 });
@@ -50,9 +50,9 @@ describe.skipIf(onWindows)("new project folder", () => {
     expect(await projects().folder(target)).toEqual({ path: target, created: false });
     expect(await projects().folder(root)).toEqual({ path: root, created: false });
   });
-  it("refuses outside the roots, the library, a file in the way, a linked ancestor and a read-only ceiling", async () => {
+  it("refuses outside the roots, a denied directory, a file in the way, a linked ancestor and a read-only ceiling", async () => {
     expect(await code(projects().folder(path.join(base, "elsewhere")))).toBe("outside_whitelist");
-    expect(await code(projects().folder(path.join(library, "x")))).toBe("outside_whitelist");
+    expect(await code(projects().folder(path.join(guarded, "x")))).toBe("outside_whitelist");
     expect(await code(projects().folder(path.join(root, "a", ".git", "x")))).toBe("outside_whitelist");
     fs.writeFileSync(path.join(root, "file"), "x");
     expect(await code(projects().folder(path.join(root, "file")))).toBe("not_a_directory");

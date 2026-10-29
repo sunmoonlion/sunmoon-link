@@ -18,7 +18,7 @@ function checkPreferences(cfg: AgentConfig, configDir: string): void {
   }
   if (cfg.roots.some(root => !choices.some(choice => canonicalPath(choice) === canonicalPath(root)))) throw new Error("Invalid directory selection");
   validate(cfg);
-  const reads = [...choices, ...(cfg.libraryDir ? [cfg.libraryDir] : [])];
+  const reads = choices;
   if (process.platform === "win32") {
     assertWindowsHome(configDir, reads); assertWindowsHome(cfg.codexHome, reads);
   } else {
@@ -34,5 +34,5 @@ function checkPreferences(cfg: AgentConfig, configDir: string): void {
 }
 
 export function preferenceView(cfg: AgentConfig) {
-  return { machineName: cfg.machineName, roots: cfg.roots, rootChoices: cfg.rootChoices ?? cfg.roots, ceiling: cfg.ceiling, libraryDir: cfg.libraryDir ?? null, lastSettingsChange: cfg.lastSettingsChange ?? null };
+  return { machineName: cfg.machineName, roots: cfg.roots, rootChoices: cfg.rootChoices ?? cfg.roots, ceiling: cfg.ceiling, lastSettingsChange: cfg.lastSettingsChange ?? null };
 }

@@ -33,7 +33,7 @@ import { LocalFiles } from "./localFiles.js";
 import { killWindowsTree, WindowsFiles } from "./windowsRuntime.js";
 import { LocalProjects } from "./localProjects.js";
 
-const VERSION = "0.5.3";
+const VERSION = "0.5.4";
 const STATUS_PATH = path.join(CONFIG_DIR, "status.json");
 
 function arg(flag: string, argv: string[]): string | undefined {
@@ -249,13 +249,12 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
   const mcpServers = process.platform === "win32" ? loadMcp(path.join(CONFIG_DIR, "mcp.json")) : undefined;
   if (process.platform === "win32") {
     const capability = await ensureWindowsSandbox(cfg);
-    if (cfg.libraryDir) { assertWindowsHome(CONFIG_DIR, [cfg.libraryDir]); assertWindowsHome(cfg.codexHome, [cfg.libraryDir]); }
     assertWindowsHome(cfg.codexHome, cfg.roots);
     const helper = locateWindowsHelper();
     // 每次启动都补一遍：用户后来装进用户目录的程序（如 Python）也要让沙箱账户读得到
     if (capability.mode === "elevated") prepareElevatedReads(cfg.codexHome, helper);
     windows = { home: cfg.codexHome, helper, mode: capability.mode, temporary: await WindowsTemporary.create(cfg.codexHome, cfg.roots, helper) };
-    try { releaseRoots = await pinWindowsDirectories(windows.helper, [...cfg.roots, ...(cfg.libraryDir ? [cfg.libraryDir] : []), cfg.codexHome], cfg.codexHome); }
+    try { releaseRoots = await pinWindowsDirectories(windows.helper, [...cfg.roots, cfg.codexHome], cfg.codexHome); }
     catch (error) { await windows.temporary.close(); throw error; }
     log("info", "Windows inner sandbox and strict protocol filter; no OS outer sandbox", { mode: windows.mode });
   }
@@ -269,7 +268,7 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
   if (serviceRunsWritable) log("info", "test computer: service may create and remove folders under runs/");
   // 新建项目（0024）：装有本地 link 的电脑走回环口，远程登录 link 的电脑走服务流（账 165），两边共用这一份、同一套规矩：
   // 只在白名单根下，Windows 上经可写的内沙箱 helper（上限是只读时不可写）
-  const projects = new LocalProjects({ roots: () => cfg.roots, denied: () => [CONFIG_DIR, cfg.codexHome, ...(cfg.libraryDir ? [cfg.libraryDir] : [])], ceiling: () => cfg.ceiling,
+  const projects = new LocalProjects({ roots: () => cfg.roots, denied: () => [CONFIG_DIR, cfg.codexHome], ceiling: () => cfg.ceiling,
     files: windows ? new WindowsFiles({ url: () => es.url, home: windows.home, roots: cfg.roots, mode: windows.mode, writable: cfg.ceiling.sandbox !== "read-only", helper: windows.helper, temporary: windows.temporary.directory }) : undefined,
     kill: windows ? killWindowsTree : undefined });
   // 被会合点拒绝就退出（退出码 3），不挂着一个连不上的进程：开机自启、托盘、systemd 都能据此看出出错（KIND 12 实测）
@@ -277,7 +276,7 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
   const relay = new RelayClient({
     windows: windows ? { ...windows, executorEnvironment: () => es.windowsEnv, confirmedHttpUrls: confirmedMcpUrls(mcpServers!) } : undefined, relayUrl: cfg.relayUrl, userId: cfg.userId, token: cfg.token, codexVersion: codex.version, softwareVersion: VERSION,
     localUrl: () => es.url, ceiling: () => cfg.ceiling, roots: () => cfg.roots, machineName: () => cfg.machineName, identity,
-    codexHome: cfg.codexHome, serviceRunsWritable, serviceProjects: projects, serviceLibraryDir: () => cfg.libraryDir,
+    codexHome: cfg.codexHome, serviceRunsWritable, serviceProjects: projects,
     onRejected: (reason) => onRejected(reason),
     confirmPermission: windows ? (windowed ? windowsConfirm : localConfirm) : undefined,
   });
@@ -287,7 +286,7 @@ async function start(cfg: AgentConfig, windowed = false): Promise<number> {
   if (resident) {
     try {
       const { webOrigin } = siteDocument(import.meta.url);
-      const readRoots = () => [...cfg.roots, ...(cfg.libraryDir ? [cfg.libraryDir] : [])];
+      const readRoots = () => cfg.roots;
       const files = new LocalFiles({ roots: readRoots, configDir: CONFIG_DIR, codexHome: cfg.codexHome,
         files: windows ? new WindowsFiles({ url: () => es.url, home: windows.home, roots: readRoots(), mode: windows.mode, writable: false, helper: windows.helper, temporary: windows.temporary.directory }) : undefined });
       const settings = new LocalSettings({ file: CONFIG_PATH, config: () => cfg, confirm: windowed ? windowsConfirm : localConfirm,

@@ -34,9 +34,8 @@ export class LocalSettings {
       let cfg: AgentConfig, next: AgentConfig, snapshot: Buffer;
       const value: any = input;
       try {
-        if (!plainObject(value) || !Object.keys(value).length || Object.keys(value).some(key => !["roots", "rootChoices", "ceiling", "autostart", "libraryDir"].includes(key))) throw new Error();
+        if (!plainObject(value) || !Object.keys(value).length || Object.keys(value).some(key => !["roots", "rootChoices", "ceiling", "autostart"].includes(key))) throw new Error();
         if ("autostart" in value && typeof value.autostart !== "boolean") throw new Error();
-        if ("libraryDir" in value && value.libraryDir !== null && typeof value.libraryDir !== "string") throw new Error();
         this.checkFile(); snapshot = fs.readFileSync(this.opts.file); cfg = loadConfig(this.opts.file);
         next = { ...cfg, ...Object.fromEntries(Object.entries(value).filter(([key]) => key !== "autostart")) };
         validatePreferences(next, path.dirname(this.opts.file));
@@ -46,7 +45,6 @@ export class LocalSettings {
       for (const root of next.roots) if (!cfg.roots.some(old => canonicalPath(old) === canonicalPath(root))) widening.push(`加目录 ${root}`);
       if (cfg.ceiling.sandbox === "read-only" && next.ceiling.sandbox === "workspace-write") widening.push("允许写工作目录");
       if (!cfg.ceiling.network && next.ceiling.network) widening.push("允许联网");
-      if (next.libraryDir && canonicalPath(next.libraryDir) !== (cfg.libraryDir ? canonicalPath(cfg.libraryDir) : null)) widening.push(`本地知识库目录 ${next.libraryDir}`);
       if (value.autostart === true && !enabled) widening.push("开启登录自启");
       if (signal.aborted) throw denied();
       if (widening.length) {

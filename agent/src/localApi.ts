@@ -121,7 +121,7 @@ function createHandler(options: LocalApiOptions) {
       else if (category === "info") {
         if (url.search) throw new LocalError(400, "invalid_params");
         const cfg = options.config!();
-        respond(res, 200, responseHeaders, JSON.stringify({ agent: "sunmoon-agent", version: options.version, userId: cfg.userId, roots: cfg.roots, libraryDir: cfg.libraryDir ?? null, lastSettingsChange: cfg.lastSettingsChange ?? null, capabilities: ["local-fs-v1", ...(options.projects ? ["local-project-v1"] : [])] }));
+        respond(res, 200, responseHeaders, JSON.stringify({ agent: "sunmoon-agent", version: options.version, userId: cfg.userId, roots: cfg.roots, lastSettingsChange: cfg.lastSettingsChange ?? null, capabilities: ["local-fs-v1", ...(options.projects ? ["local-project-v1"] : [])] }));
       } else {
         const keys = [...url.searchParams.keys()];
         if (keys.some(key => !(category === "file" ? ["path", "offset", "length"] : ["path"]).includes(key)) || new Set(keys).size !== keys.length || !url.searchParams.get("path")) throw new LocalError(400, "invalid_params");

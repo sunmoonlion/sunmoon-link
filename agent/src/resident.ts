@@ -223,7 +223,7 @@ export function preferences(argv: string[]): object {
   checkControlDirectory(); const cfg = loadConfig();
   if (argv[0] === "set") {
     const input = JSON.parse(fs.readFileSync(0, "utf8"));
-    if (!input || !["ceiling", "machineName", "roots"].every(key => key in input) || Object.keys(input).some(key => !["ceiling", "machineName", "roots", "rootChoices", "libraryDir"].includes(key))) throw new Error("Invalid settings fields");
+    if (!input || !["ceiling", "machineName", "roots"].every(key => key in input) || Object.keys(input).some(key => !["ceiling", "machineName", "roots", "rootChoices"].includes(key))) throw new Error("Invalid settings fields");
     const choices = input.rootChoices ?? input.roots;
     fs.mkdirSync(cfg.codexHome, { recursive: true, mode: 0o700 });
     const next = { ...cfg, ...input, rootChoices: choices };

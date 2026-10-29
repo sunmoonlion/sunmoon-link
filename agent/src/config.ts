@@ -18,8 +18,6 @@ export interface AgentConfig {
   roots: string[];
   /** Local settings choices, including unchecked directories; never grants access. */
   rootChoices?: string[];
-  /** Local read-only library; never a writable workspace root. */
-  libraryDir?: string | null;
   lastSettingsChange?: string | null;
   ceiling: Ceiling;
   /** exec-server 监听端口；0 = 自动选空闲回环端口 */
@@ -75,7 +73,10 @@ export function loadConfig(file = CONFIG_PATH): AgentConfig {
   if (!fs.existsSync(file)) throw new Error(`没有配置：${file}（先跑 sunmoon-link init）`);
   let raw: any;
   try { raw = JSON.parse(fs.readFileSync(file, "utf8")); } catch { throw new Error("本地 link 的配置无法读取或 JSON 无效；请在本机检查 config.json"); }
-  const cfg: AgentConfig = { ...defaultConfig(), ...raw, ceiling: { ...defaultConfig().ceiling, ...(raw.ceiling ?? {}) } };
+  // 0.5.4 起没有本地知识库目录（数据拓扑第四版①，SDD 0043 第 4.1 节）：用户电脑上旧配置里的 libraryDir 读到就丢掉，
+  // 不报错、不再读那个目录；下次保存配置就不再写它
+  const { libraryDir: _retired, ...kept } = raw ?? {};
+  const cfg: AgentConfig = { ...defaultConfig(), ...kept, ceiling: { ...defaultConfig().ceiling, ...(kept.ceiling ?? {}) } };
   validate(cfg);
   return cfg;
 }
@@ -91,11 +92,6 @@ export function validate(cfg: AgentConfig): void {
   catch { throw new Error("relayUrl 必须是 ws:// 或 wss://，且不能包含口令、查询参数或片段"); }
   if (!cfg.userId) throw new Error("userId 不能为空");
   if (cfg.deviceId !== undefined && (typeof cfg.deviceId !== "string" || !DEVICE_ID.test(cfg.deviceId))) throw new Error("deviceId 非法");
-  if (cfg.libraryDir != null) {
-    let valid = false;
-    try { valid = typeof cfg.libraryDir === "string" && canonicalPath(cfg.libraryDir) !== null && fs.statSync(cfg.libraryDir).isDirectory(); } catch { /* Fixed error below, without the private directory. */ }
-    if (!valid) throw new Error("Invalid local library directory");
-  }
   if (cfg.lastSettingsChange != null && (typeof cfg.lastSettingsChange !== "string" || !Number.isFinite(Date.parse(cfg.lastSettingsChange)))) throw new Error("Invalid settings timestamp");
   if (typeof cfg.machineName !== "string" || !cfg.machineName.trim() || cfg.machineName.length > 128 || /[\x00-\x1f\x7f]/.test(cfg.machineName)) throw new Error("machineName 要有，且不超过 128 个字符、不含控制字符");
   for (const r of cfg.roots) {

@@ -1,5 +1,5 @@
 // New-project actions for the loopback API (0024): make a folder, clone a git repository.
-// Writes only under the workspace roots, never the library/config/codex-home. Windows folders go
+// Writes only under the workspace roots, never the config/codex-home. Windows folders go
 // through the sandboxed helper's reviewed fs/createDirectory; git runs unsandboxed because it
 // needs the user's own credential manager and ssh keys, with fixed argv and no shell.
 import { spawn, type ChildProcess } from "node:child_process";

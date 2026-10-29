@@ -16,7 +16,7 @@ beforeEach(() => {
 afterEach(async () => { await handler.close(); fs.rmSync(base, { recursive: true, force: true }); });
 describe("service-v1 read boundary", () => {
   it("returns only the contracted hello and metadata fields", async () => {
-    expect((await rpc("service/hello")).result).toEqual({ agent: "sunmoon-agent", version: "0.4.0", roots: [root], libraryDir: null, capabilities: ["service-v1", "service-digest-v1"] });
+    expect((await rpc("service/hello")).result).toEqual({ agent: "sunmoon-agent", version: "0.4.0", roots: [root], capabilities: ["service-v1", "service-digest-v1"] });
     fs.writeFileSync(path.join(root, "中文.txt"), "hello");
     expect((await rpc("fs/getMetadata", { path: path.join(root, "中文.txt") })).result).toEqual({ type: "file", size: 5, mtime: expect.any(Number) });
   });
@@ -99,35 +99,27 @@ describe("service-v1 read boundary", () => {
   });
 });
 
-describe("local knowledge base through the service stream (SDD 0042)", () => {
-  it("reads the library read-only and says where it is; writes never reach it", async () => {
-    const library = path.join(base, "library"); fs.mkdirSync(library);
-    fs.writeFileSync(path.join(library, "年报.txt"), "营业收入");
-    const h = new ServiceHandler({ version: "0.5.3", roots: () => [root], libraryDir: () => library, configDir: path.join(base, "config"), codexHome: path.join(base, "home"), platform: "linux", runsWritable: true });
-    expect((await rpc("service/hello", undefined, h)).result.libraryDir).toBe(library);
-    const read = (await rpc("fs/readFile", { path: path.join(library, "年报.txt") }, h)).result;
-    expect(Buffer.from(read.content, "base64").toString()).toBe("营业收入");
-    expect((await rpc("fs/readDirectory", { path: library }, h)).result.entries.map((e: any) => e.name)).toEqual(["年报.txt"]);
-    // runs/ 只在项目目录下，本地知识库里建不了
-    const runs = await rpc("fs/createDirectory", { path: path.join(library, "runs", "r1") }, h);
-    expect(runs.error.code).toBe(-32010);
-    expect(fs.existsSync(path.join(library, "runs"))).toBe(false);
+describe("no local knowledge base since 0.5.4 (data topology v4 ①)", () => {
+  it("hello no longer reports a library, and a directory outside the roots stays unreadable", async () => {
+    const outside = path.join(base, "library"); fs.mkdirSync(outside);
+    fs.writeFileSync(path.join(outside, "年报.txt"), "营业收入");
+    const h = new ServiceHandler({ version: "0.5.4", roots: () => [root], configDir: path.join(base, "config"), codexHome: path.join(base, "home"), platform: "linux" });
+    expect("libraryDir" in (await rpc("service/hello", undefined, h)).result).toBe(false);
+    expect((await rpc("fs/readFile", { path: path.join(outside, "年报.txt") }, h)).error.code).toBe(-32010);
     await h.close();
-    // 没设本地知识库：照旧读不到
-    expect((await rpc("fs/readFile", { path: path.join(library, "年报.txt") })).error.code).toBe(-32010);
   });
 });
 
 describe("fs/digest: the link hashes a picked file (SDD 0042)", () => {
-  it("hashes a library file whole, under the same boundary as reads", async () => {
-    const library = path.join(base, "library"); fs.mkdirSync(library);
-    const body = Buffer.alloc(3 * 1024 * 1024 + 7, 7); fs.writeFileSync(path.join(library, "年报.pdf"), body);
-    const h = new ServiceHandler({ version: "0.5.3", roots: () => [root], libraryDir: () => library, configDir: path.join(base, "config"), codexHome: path.join(base, "home"), platform: "linux" });
-    const got = (await rpc("fs/digest", { path: path.join(library, "年报.pdf") }, h)).result;
+  it("hashes a file under the roots whole, under the same boundary as reads", async () => {
+    const folder = path.join(root, "资料"); fs.mkdirSync(folder);
+    const body = Buffer.alloc(3 * 1024 * 1024 + 7, 7); fs.writeFileSync(path.join(folder, "年报.pdf"), body);
+    const h = new ServiceHandler({ version: "0.5.4", roots: () => [root], configDir: path.join(base, "config"), codexHome: path.join(base, "home"), platform: "linux" });
+    const got = (await rpc("fs/digest", { path: path.join(folder, "年报.pdf") }, h)).result;
     expect(got).toEqual({ size: body.length, mtime: expect.any(Number), sha256: createHash("sha256").update(body).digest("hex") });
     expect((await rpc("fs/digest", { path: path.join(base, "config", "x") }, h)).error.code).toBe(-32010);
-    expect((await rpc("fs/digest", { path: path.join(library, "absent") }, h)).error.code).toBe(-32012);
-    expect((await rpc("fs/digest", { path: path.join(library, "年报.pdf"), offset: 0 }, h)).error.code).toBe(-32602);
+    expect((await rpc("fs/digest", { path: path.join(folder, "absent") }, h)).error.code).toBe(-32012);
+    expect((await rpc("fs/digest", { path: path.join(folder, "年报.pdf"), offset: 0 }, h)).error.code).toBe(-32602);
     await h.close();
   });
   it("on Windows hashes the helper's blocks and refuses a file that changes midway", async () => {
