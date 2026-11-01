@@ -114,60 +114,120 @@ export function windowsHelperArgs(home: string, roots: readonly string[], mode: 
 }
 
 export class WindowsFiles {
-  private child?: ChildProcess;
   private seq = 0;
-  private buffer = "";
-  private stopped = false;
-  private starting?: Promise<void>;
-  private pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }>();
+  private notFoundPromise?: Promise<{ file: any; directory: any }>;
+  private closed = false;
+
   constructor(private opts: { url: () => string; home: string; roots: readonly string[]; mode: WindowsMode; writable: boolean; helper: WindowsHelper; temporary?: string }) {}
-  private async start(): Promise<void> {
-    const o = this.opts;
-    // Capture localized Windows messages from the pinned executor, rather than
-    // baking this development machine's language into distributed code.
-    const rpc = await LocalRpc.connect(o.url());
-    let notFound: { file: any; directory: any };
-    try {
-      const absent = path.join(o.home, `.sunmoon-not-found-${randomUUID()}`);
-      const file = (await rpc.call("fs/getMetadata", { path: pathToFileURL(absent).href, sandbox: null })).error;
-      const directory = (await rpc.call("fs/readFile", { path: pathToFileURL(path.join(absent, "child")).href, sandbox: null })).error;
-      if ([file, directory].some(e => e?.code !== -32004 || typeof e.message !== "string")) throw new Error("Unexpected executor not-found contract");
-      notFound = { file: { code: file.code, message: file.message }, directory: { code: directory.code, message: directory.message } };
-    } finally { rpc.close(); }
-    if (this.stopped) throw new Error("filesystem worker closed");
-    this.child = spawn(locateCodex().codexBin, windowsHelperArgs(o.home, o.roots, o.mode, o.writable, o.helper, notFound), { cwd: o.roots[0] ?? o.home, env: windowsEnvironment(o.home, {}, process.env, o.temporary), stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
-    // Directory responses can span pipe chunks in the middle of a UTF-8 name.
-    this.child.stdout!.setEncoding("utf8");
-    this.child.stdout!.on("data", d => {
-      this.buffer += String(d);
-      if (this.buffer.length > 16 * 1024 * 1024) { void this.close(); return; }
-      let n; while ((n = this.buffer.indexOf("\n")) >= 0) {
-        const line = this.buffer.slice(0, n); this.buffer = this.buffer.slice(n + 1);
-        try { const v = JSON.parse(line); const p = this.pending.get(v.id); if (p) { clearTimeout(p.timer); this.pending.delete(v.id); p.resolve(v); } } catch { void this.close(); }
-      }
-    });
-    // Drain without forwarding paths, command output or credentials into logs.
-    this.child.stderr!.resume();
-    this.child.once("error", () => { void this.close(); });
-    this.child.once("exit", () => { void this.close(); });
-    this.child.stdin!.on("error", () => { void this.close(); });
+
+  private async getNotFound(): Promise<{ file: any; directory: any }> {
+    if (!this.notFoundPromise) {
+      this.notFoundPromise = (async () => {
+        const rpc = await LocalRpc.connect(this.opts.url());
+        try {
+          const absent = path.join(this.opts.home, `.sunmoon-not-found-${randomUUID()}`);
+          const file = (await rpc.call("fs/getMetadata", { path: pathToFileURL(absent).href, sandbox: null })).error;
+          const directory = (await rpc.call("fs/readFile", { path: pathToFileURL(path.join(absent, "child")).href, sandbox: null })).error;
+          if ([file, directory].some(e => e?.code !== -32004 || typeof e.message !== "string")) {
+            throw new Error("Unexpected executor not-found contract");
+          }
+          return { file: { code: file.code, message: file.message }, directory: { code: directory.code, message: directory.message } };
+        } finally {
+          rpc.close();
+        }
+      })();
+    }
+    return this.notFoundPromise;
   }
+
   async call(method: string, params: any): Promise<any> {
-    if (this.stopped) throw new Error("filesystem worker closed");
-    if (!this.starting) this.starting = this.start();
-    await this.starting;
-    if (this.stopped) throw new Error("filesystem worker closed");
+    if (this.closed) throw new Error("filesystem worker closed");
+    const notFound = await this.getNotFound();
+    if (this.closed) throw new Error("filesystem worker closed");
     const id = ++this.seq;
+    const o = this.opts;
+
+    const child = spawn(
+      locateCodex().codexBin,
+      windowsHelperArgs(o.home, o.roots, o.mode, o.writable, o.helper, notFound),
+      {
+        cwd: o.roots[0] ?? o.home,
+        env: windowsEnvironment(o.home, {}, process.env, o.temporary),
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true,
+      }
+    );
+
+    let buffer = "";
+    child.stdout!.setEncoding("utf8");
+    child.stderr!.resume();
+    child.stdin!.on("error", () => {});
+
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error("filesystem worker timeout")); void this.close(); }, 15000);
-      this.pending.set(id, { resolve, reject, timer });
-      this.child!.stdin!.write(JSON.stringify({ id, method, params }) + "\n");
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          void killWindowsTree(child);
+          reject(new Error(`filesystem worker timeout: ${method}`));
+        }
+      }, 15000);
+
+      child.stdout!.on("data", d => {
+        buffer += String(d);
+        if (buffer.length > 16 * 1024 * 1024) {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            void killWindowsTree(child);
+            reject(new Error("filesystem worker buffer overflow"));
+          }
+          return;
+        }
+        let n;
+        while ((n = buffer.indexOf("\n")) >= 0) {
+          const line = buffer.slice(0, n);
+          buffer = buffer.slice(n + 1);
+          try {
+            const v = JSON.parse(line);
+            if (v && v.id === id) {
+              if (!settled) {
+                settled = true;
+                clearTimeout(timer);
+                resolve(v);
+                void killWindowsTree(child);
+              }
+              return;
+            }
+          } catch {}
+        }
+      });
+
+      child.once("error", err => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          reject(new Error(`filesystem worker process error: ${err.message}`));
+        }
+      });
+
+      child.once("exit", (code, signal) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          reject(new Error(`filesystem worker exited prematurely: code=${code ?? signal}`));
+        }
+      });
+
+      // Send the single JSON-RPC frame and close stdin (send EOF).
+      // This allows the Windows helper inside Codex sandbox to process immediately
+      // without hanging on persistent stdio pipe buffers.
+      child.stdin!.end(JSON.stringify({ id, method, params }) + "\n");
     });
   }
+
   async close(): Promise<void> {
-    if (this.stopped) return; this.stopped = true;
-    for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new Error("sandboxed filesystem worker unavailable")); } this.pending.clear();
-    if (this.child) await killWindowsTree(this.child);
+    this.closed = true;
   }
 }
 

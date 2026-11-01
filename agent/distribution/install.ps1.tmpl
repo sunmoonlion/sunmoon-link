@@ -9,7 +9,16 @@ $SizeBytes = [int64]'{{SIZE_BYTES}}'
 $ZipSha256 = '{{ZIP_SHA256}}'
 $ManifestSha256 = '{{MANIFEST_SHA256}}'
 $CodexVersion = '{{CODEX_VERSION}}'
-$Temp = Join-Path $env:TEMP ('sunmoon-link-' + [guid]::NewGuid().ToString('n'))
+$BaseTemp = if ($env:LOCALAPPDATA -and (Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA 'Temp'))) {
+    Join-Path $env:LOCALAPPDATA 'Temp'
+} elseif ($env:TEMP) {
+    try {
+        if (Test-Path -LiteralPath $env:TEMP) { (Get-Item -LiteralPath $env:TEMP).FullName } else { $env:TEMP }
+    } catch { $env:TEMP }
+} else {
+    Join-Path $env:USERPROFILE 'AppData\Local\Temp'
+}
+$Temp = Join-Path $BaseTemp ('sunmoon-link-' + [guid]::NewGuid().ToString('n'))
 $Zip = Join-Path $Temp 'pkg.zip'
 $Expanded = Join-Path $Temp 'pkg'
 $Dest = Join-Path $env:LOCALAPPDATA 'Programs\sunmoon-link'
@@ -120,7 +129,12 @@ try {
     }
     Show-AgentWindow
 } catch {
-    Write-Warning '可能有旧窗口的进程还开着，先在托盘退出、关掉所有 SunMoon 窗口再试'
+    $ErrMsg = $_.Exception.Message
+    if ($ErrMsg -match '残留进程' -or $ErrMsg -match '正在被另一个进程使用' -or $ErrMsg -match 'locked|in use') {
+        Write-Warning '可能有旧窗口的进程还开着，先在托盘退出、关掉所有 SunMoon 窗口再试'
+    } else {
+        Write-Warning ("安装中断：" + $ErrMsg)
+    }
     throw
 } finally {
     if (Test-Path -LiteralPath $Temp) { Remove-Item -LiteralPath $Temp -Recurse -Force }

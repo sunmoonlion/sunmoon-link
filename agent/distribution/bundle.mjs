@@ -47,9 +47,21 @@ export function exists(file) {
 // Refuse links/junctions, including ancestors. This is an ordinary-user installer,
 // not a security boundary against another process running as that same user.
 export function plainDirectory(directory) {
-  const absolute = path.resolve(directory);
-  if (process.platform === 'win32' && (!/^[A-Za-z]:\\/.test(absolute) || absolute.slice(3).includes(':') || /~[0-9]/.test(absolute))) {
-    throw new Error('Install/build paths must be ordinary local drive paths');
+  let absolute = path.resolve(directory);
+  if (process.platform === 'win32') {
+    try {
+      if (fs.existsSync(absolute)) {
+        absolute = fs.realpathSync.native(absolute);
+      } else {
+        const parent = path.dirname(absolute);
+        if (fs.existsSync(parent)) {
+          absolute = path.join(fs.realpathSync.native(parent), path.basename(absolute));
+        }
+      }
+    } catch {}
+    if (!/^[A-Za-z]:\\/.test(absolute) || absolute.slice(3).includes(':') || /~[0-9]/.test(absolute)) {
+      throw new Error('Install/build paths must be ordinary local drive paths');
+    }
   }
   const root = path.parse(absolute).root;
   let current = root;
