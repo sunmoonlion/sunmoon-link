@@ -136,6 +136,9 @@ export class WindowsFiles {
           rpc.close();
         }
       })();
+      // A failed probe (exec-server not up yet, a dropped connection) must not stick:
+      // clear it so the next file call probes again (ledger 187).
+      this.notFoundPromise.catch(() => { this.notFoundPromise = undefined; });
     }
     return this.notFoundPromise;
   }
