@@ -1,0 +1,1047 @@
+{
+  "revision": "795d5f831076e87d6b352b79601ac64e476ac2d2",
+  "codex": "0.155.1",
+  "node": "v24.19.0",
+  "startedAt": "2026-11-08T09:04:10.341Z",
+  "fixture": "C:\\Users\\zymun\\sunmoon-probe-runs\\link-056-resident-20261108\\fixture-eRnBdg",
+  "tests": [
+    {
+      "type": "open-stdin-two-requests",
+      "mode": "unelevated",
+      "beforeEOF": {
+        "stdout": "{\"id\":1,\"result\":{\"isDirectory\":false,\"isFile\":true,\"isSymlink\":false,\"size\":4096,\"createdAtMs\":1794128650340,\"modifiedAtMs\":1794128650340}}\n{\"id\":2,\"result\":{\"isDirectory\":false,\"isFile\":true,\"isSymlink\":false,\"size\":4096,\"createdAtMs\":1794128650340,\"modifiedAtMs\":1794128650340}}\n",
+        "stderr": "",
+        "elapsedMs": 30015.9786
+      },
+      "afterEOF": {
+        "elapsedMs": 30127.4793,
+        "exitCode": 0,
+        "stdout": "{\"id\":1,\"result\":{\"isDirectory\":false,\"isFile\":true,\"isSymlink\":false,\"size\":4096,\"createdAtMs\":1794128650340,\"modifiedAtMs\":1794128650340}}\n{\"id\":2,\"result\":{\"isDirectory\":false,\"isFile\":true,\"isSymlink\":false,\"size\":4096,\"createdAtMs\":1794128650340,\"modifiedAtMs\":1794128650340}}\n",
+        "stderr": "",
+        "events": [
+          {
+            "stream": "stdout",
+            "atMs": 126.7797,
+            "bytes": 141
+          },
+          {
+            "stream": "stdout",
+            "atMs": 127.2138,
+            "bytes": 141
+          }
+        ]
+      }
+    },
+    {
+      "type": "one-request-EOF",
+      "mode": "unelevated",
+      "elapsedMs": 216.92669999999998,
+      "exitCode": 0,
+      "stdout": "{\"id\":3,\"result\":{\"isDirectory\":false,\"isFile\":true,\"isSymlink\":false,\"size\":4096,\"createdAtMs\":1794128650340,\"modifiedAtMs\":1794128650340}}\n",
+      "stderr": "",
+      "events": [
+        {
+          "stream": "stdout",
+          "atMs": 118.65169999999853,
+          "bytes": 141
+        }
+      ]
+    },
+    {
+      "type": "input-marker-threshold",
+      "mode": "unelevated",
+      "checkpoints": [
+        {
+          "sent": 0,
+          "marker": "{\"event\":\"started\",\"at\":1794128680880}\n",
+          "stdout": "started\n"
+        },
+        {
+          "sent": 2,
+          "marker": "{\"event\":\"started\",\"at\":1794128680880}\n{\"event\":\"data\",\"length\":2,\"total\":2,\"at\":1794128682277}\n",
+          "stdout": "started\n{\"received\":2}\n"
+        },
+        {
+          "sent": 1026,
+          "marker": "{\"event\":\"started\",\"at\":1794128680880}\n{\"event\":\"data\",\"length\":2,\"total\":2,\"at\":1794128682277}\n{\"event\":\"data\",\"length\":1024,\"total\":1026,\"at\":1794128683791}\n",
+          "stdout": "started\n{\"received\":2}\n{\"received\":1026}\n"
+        },
+        {
+          "sent": 9218,
+          "marker": "{\"event\":\"started\",\"at\":1794128680880}\n{\"event\":\"data\",\"length\":2,\"total\":2,\"at\":1794128682277}\n{\"event\":\"data\",\"length\":1024,\"total\":1026,\"at\":1794128683791}\n{\"event\":\"data\",\"length\":8192,\"total\":9218,\"at\":1794128685301}\n",
+          "stdout": "started\n{\"received\":2}\n{\"received\":1026}\n{\"received\":9218}\n"
+        },
+        {
+          "sent": 74754,
+          "marker": "{\"event\":\"started\",\"at\":1794128680880}\n{\"event\":\"data\",\"length\":2,\"total\":2,\"at\":1794128682277}\n{\"event\":\"data\",\"length\":1024,\"total\":1026,\"at\":1794128683791}\n{\"event\":\"data\",\"length\":8192,\"total\":9218,\"at\":1794128685301}\n{\"event\":\"data\",\"length\":8192,\"total\":17410,\"at\":1794128686805}\n{\"event\":\"data\",\"length\":12288,\"total\":29698,\"at\":1794128686806}\n{\"event\":\"data\",\"length\":12288,\"total\":41986,\"at\":1794128686807}\n{\"event\":\"data\",\"length\":12288,\"total\":54274,\"at\":1794128686808}\n{\"event\":\"data\",\"length\":12288,\"total\":66562,\"at\":1794128686808}\n{\"event\":\"data\",\"length\":8192,\"total\":74754,\"at\":1794128686809}\n",
+          "stdout": "started\n{\"received\":2}\n{\"received\":1026}\n{\"received\":9218}\n{\"received\":17410}\n{\"received\":29698}\n{\"received\":41986}\n{\"received\":54274}\n{\"received\":66562}\n{\"received\":74754}\n"
+        },
+        {
+          "sent": 336898,
+          "marker": "{\"event\":\"started\",\"at\":1794128680880}\n{\"event\":\"data\",\"length\":2,\"total\":2,\"at\":1794128682277}\n{\"event\":\"data\",\"length\":1024,\"total\":1026,\"at\":1794128683791}\n{\"event\":\"data\",\"length\":8192,\"total\":9218,\"at\":1794128685301}\n{\"event\":\"data\",\"length\":8192,\"total\":17410,\"at\":1794128686805}\n{\"event\":\"data\",\"length\":12288,\"total\":29698,\"at\":1794128686806}\n{\"event\":\"data\",\"length\":12288,\"total\":41986,\"at\":1794128686807}\n{\"event\":\"data\",\"length\":12288,\"total\":54274,\"at\":1794128686808}\n{\"event\":\"data\",\"length\":12288,\"total\":66562,\"at\":1794128686808}\n{\"event\":\"data\",\"length\":8192,\"total\":74754,\"at\":1794128686809}\n{\"event\":\"data\",\"length\":8192,\"total\":82946,\"at\":1794128688317}\n{\"event\":\"data\",\"length\":12288,\"total\":95234,\"at\":1794128688318}\n{\"event\":\"data\",\"length\":12288,\"total\":107522,\"at\":1794128688318}\n{\"event\":\"data\",\"length\":12288,\"total\":119810,\"at\":1794128688319}\n{\"event\":\"data\",\"length\":12288,\"total\":132098,\"at\":1794128688319}\n{\"event\":\"data\",\"length\":12288,\"total\":144386,\"at\":1794128688320}\n{\"event\":\"data\",\"length\":12288,\"total\":156674,\"at\":1794128688320}\n{\"event\":\"data\",\"length\":12288,\"total\":168962,\"at\":1794128688321}\n{\"event\":\"data\",\"length\":12288,\"total\":181250,\"at\":1794128688321}\n{\"event\":\"data\",\"length\":12288,\"total\":193538,\"at\":1794128688322}\n{\"event\":\"data\",\"length\":12288,\"total\":205826,\"at\":1794128688323}\n{\"event\":\"data\",\"length\":12288,\"total\":218114,\"at\":1794128688323}\n{\"event\":\"data\",\"length\":12288,\"total\":230402,\"at\":1794128688324}\n{\"event\":\"data\",\"length\":12288,\"total\":242690,\"at\":1794128688324}\n{\"event\":\"data\",\"length\":12288,\"total\":254978,\"at\":1794128688325}\n{\"event\":\"data\",\"length\":12288,\"total\":267266,\"at\":1794128688325}\n{\"event\":\"data\",\"length\":12288,\"total\":279554,\"at\":1794128688325}\n{\"event\":\"data\",\"length\":12288,\"total\":291842,\"at\":1794128688326}\n{\"event\":\"data\",\"length\":12288,\"total\":304130,\"at\":1794128688327}\n{\"event\":\"data\",\"length\":12288,\"total\":316418,\"at\":1794128688327}\n{\"event\":\"data\",\"length\":12288,\"total\":328706,\"at\":1794128688328}\n{\"event\":\"data\",\"length\":8192,\"total\":336898,\"at\":1794128688328}\n",
+          "stdout": "started\n{\"received\":2}\n{\"received\":1026}\n{\"received\":9218}\n{\"received\":17410}\n{\"received\":29698}\n{\"received\":41986}\n{\"received\":54274}\n{\"received\":66562}\n{\"received\":74754}\n{\"received\":82946}\n{\"received\":95234}\n{\"received\":107522}\n{\"received\":119810}\n{\"received\":132098}\n{\"received\":144386}\n{\"received\":156674}\n{\"received\":168962}\n{\"received\":181250}\n{\"received\":193538}\n{\"received\":205826}\n{\"received\":218114}\n{\"received\":230402}\n{\"received\":242690}\n{\"received\":254978}\n{\"received\":267266}\n{\"received\":279554}\n{\"received\":291842}\n{\"received\":304130}\n{\"received\":316418}\n{\"received\":328706}\n{\"received\":336898}\n"
+        }
+      ],
+      "afterEOF": {
+        "elapsedMs": 9152.058300000004,
+        "exitCode": 0,
+        "stdout": "started\n{\"received\":2}\n{\"received\":1026}\n{\"received\":9218}\n{\"received\":17410}\n{\"received\":29698}\n{\"received\":41986}\n{\"received\":54274}\n{\"received\":66562}\n{\"received\":74754}\n{\"received\":82946}\n{\"received\":95234}\n{\"received\":107522}\n{\"received\":119810}\n{\"received\":132098}\n{\"received\":144386}\n{\"received\":156674}\n{\"received\":168962}\n{\"received\":181250}\n{\"received\":193538}\n{\"received\":205826}\n{\"received\":218114}\n{\"received\":230402}\n{\"received\":242690}\n{\"received\":254978}\n{\"received\":267266}\n{\"received\":279554}\n{\"received\":291842}\n{\"received\":304130}\n{\"received\":316418}\n{\"received\":328706}\n{\"received\":336898}\n",
+        "stderr": "",
+        "events": [
+          {
+            "stream": "stdout",
+            "atMs": 109.96940000000177,
+            "bytes": 8
+          },
+          {
+            "stream": "stdout",
+            "atMs": 1503.9786000000022,
+            "bytes": 15
+          },
+          {
+            "stream": "stdout",
+            "atMs": 3017.842000000004,
+            "bytes": 18
+          },
+          {
+            "stream": "stdout",
+            "atMs": 4527.8799,
+            "bytes": 18
+          },
+          {
+            "stream": "stdout",
+            "atMs": 6032.580600000001,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 6033.385000000002,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 6033.815000000002,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 6034.305500000002,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 6035.182500000003,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 6036.1898,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7543.9927000000025,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7544.5052,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7545.098700000002,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7545.563600000001,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7546.037900000003,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7546.524900000004,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7547.107100000001,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7547.599200000004,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7548.264999999999,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7548.800199999998,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7549.393100000001,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7549.914900000003,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7550.435700000002,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7550.852800000001,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7551.227200000001,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7551.612200000003,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7552.3315,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7552.887500000004,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7553.370900000002,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7553.901299999998,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7554.414799999999,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7555.181400000001,
+            "bytes": 20
+          }
+        ]
+      },
+      "finalMarker": "{\"event\":\"started\",\"at\":1794128680880}\n{\"event\":\"data\",\"length\":2,\"total\":2,\"at\":1794128682277}\n{\"event\":\"data\",\"length\":1024,\"total\":1026,\"at\":1794128683791}\n{\"event\":\"data\",\"length\":8192,\"total\":9218,\"at\":1794128685301}\n{\"event\":\"data\",\"length\":8192,\"total\":17410,\"at\":1794128686805}\n{\"event\":\"data\",\"length\":12288,\"total\":29698,\"at\":1794128686806}\n{\"event\":\"data\",\"length\":12288,\"total\":41986,\"at\":1794128686807}\n{\"event\":\"data\",\"length\":12288,\"total\":54274,\"at\":1794128686808}\n{\"event\":\"data\",\"length\":12288,\"total\":66562,\"at\":1794128686808}\n{\"event\":\"data\",\"length\":8192,\"total\":74754,\"at\":1794128686809}\n{\"event\":\"data\",\"length\":8192,\"total\":82946,\"at\":1794128688317}\n{\"event\":\"data\",\"length\":12288,\"total\":95234,\"at\":1794128688318}\n{\"event\":\"data\",\"length\":12288,\"total\":107522,\"at\":1794128688318}\n{\"event\":\"data\",\"length\":12288,\"total\":119810,\"at\":1794128688319}\n{\"event\":\"data\",\"length\":12288,\"total\":132098,\"at\":1794128688319}\n{\"event\":\"data\",\"length\":12288,\"total\":144386,\"at\":1794128688320}\n{\"event\":\"data\",\"length\":12288,\"total\":156674,\"at\":1794128688320}\n{\"event\":\"data\",\"length\":12288,\"total\":168962,\"at\":1794128688321}\n{\"event\":\"data\",\"length\":12288,\"total\":181250,\"at\":1794128688321}\n{\"event\":\"data\",\"length\":12288,\"total\":193538,\"at\":1794128688322}\n{\"event\":\"data\",\"length\":12288,\"total\":205826,\"at\":1794128688323}\n{\"event\":\"data\",\"length\":12288,\"total\":218114,\"at\":1794128688323}\n{\"event\":\"data\",\"length\":12288,\"total\":230402,\"at\":1794128688324}\n{\"event\":\"data\",\"length\":12288,\"total\":242690,\"at\":1794128688324}\n{\"event\":\"data\",\"length\":12288,\"total\":254978,\"at\":1794128688325}\n{\"event\":\"data\",\"length\":12288,\"total\":267266,\"at\":1794128688325}\n{\"event\":\"data\",\"length\":12288,\"total\":279554,\"at\":1794128688325}\n{\"event\":\"data\",\"length\":12288,\"total\":291842,\"at\":1794128688326}\n{\"event\":\"data\",\"length\":12288,\"total\":304130,\"at\":1794128688327}\n{\"event\":\"data\",\"length\":12288,\"total\":316418,\"at\":1794128688327}\n{\"event\":\"data\",\"length\":12288,\"total\":328706,\"at\":1794128688328}\n{\"event\":\"data\",\"length\":8192,\"total\":336898,\"at\":1794128688328}\n{\"event\":\"end\",\"at\":1794128689819}\n"
+    },
+    {
+      "type": "batch",
+      "mode": "unelevated",
+      "count": 10,
+      "round": 1,
+      "totalMs": 221.9475999999995,
+      "perItemMs": 22.194759999999953,
+      "responses": 10,
+      "errors": 0,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "type": "batch",
+      "mode": "unelevated",
+      "count": 10,
+      "round": 2,
+      "totalMs": 224.98129999999946,
+      "perItemMs": 22.498129999999946,
+      "responses": 10,
+      "errors": 0,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "type": "batch",
+      "mode": "unelevated",
+      "count": 10,
+      "round": 3,
+      "totalMs": 220.13620000000083,
+      "perItemMs": 22.01362000000008,
+      "responses": 10,
+      "errors": 0,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "type": "batch",
+      "mode": "unelevated",
+      "count": 50,
+      "round": 1,
+      "totalMs": 224.60259999999835,
+      "perItemMs": 4.492051999999967,
+      "responses": 50,
+      "errors": 0,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "type": "batch",
+      "mode": "unelevated",
+      "count": 50,
+      "round": 2,
+      "totalMs": 219.2013999999981,
+      "perItemMs": 4.384027999999962,
+      "responses": 50,
+      "errors": 0,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "type": "batch",
+      "mode": "unelevated",
+      "count": 50,
+      "round": 3,
+      "totalMs": 221.39530000000377,
+      "perItemMs": 4.427906000000076,
+      "responses": 50,
+      "errors": 0,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "type": "socket",
+      "mode": "unelevated",
+      "channel": "tcp",
+      "address": {
+        "host": "127.0.0.1",
+        "port": 49681
+      },
+      "connected": true,
+      "startupMs": 221.9172000000035,
+      "isolation": {
+        "outsideWrite": "EPERM"
+      },
+      "denials": [],
+      "error": "RPC timeout",
+      "marker": "started\nconnected\n",
+      "stderr": "node:internal/child_process:458\r\n    throw new ErrnoException(err, 'spawn');\r\n    ^\r\n\r\nError: spawn EPERM\r\n    at ChildProcess.spawn (node:internal/child_process:458:11)\r\n    at spawn (node:child_process:813:9)\r\n    at Socket.<anonymous> (file:///C:/Users/zymun/sunmoon-probe-runs/link-056-resident-20261108/fixture-eRnBdg/workspace/socket-wrapper.mjs:1:587)\r\n    at Socket.emit (node:events:509:28)\r\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1849:10) {\r\n  errno: -4048,\r\n  code: 'EPERM',\r\n  syscall: 'spawn'\r\n}\r\n\r\nNode.js v24.19.0\r\n",
+      "outsideExists": false
+    },
+    {
+      "type": "socket",
+      "mode": "unelevated",
+      "channel": "pipe",
+      "address": "\\\\.\\pipe\\sunmoon-resident-probe-12812-unelevated",
+      "connected": false,
+      "startupMs": 220.261599999998,
+      "marker": "started\nconnect-error:EPERM\n",
+      "stderr": "",
+      "outsideExists": false
+    },
+    {
+      "type": "open-stdin-two-requests",
+      "mode": "elevated",
+      "beforeEOF": {
+        "stdout": "{\"id\":1,\"result\":{\"isDirectory\":false,\"isFile\":true,\"isSymlink\":false,\"size\":4096,\"createdAtMs\":1794128650340,\"modifiedAtMs\":1794128650340}}\n{\"id\":2,\"result\":{\"isDirectory\":false,\"isFile\":true,\"isSymlink\":false,\"size\":4096,\"createdAtMs\":1794128650340,\"modifiedAtMs\":1794128650340}}\n",
+        "stderr": "",
+        "elapsedMs": 30014.0175
+      },
+      "afterEOF": {
+        "elapsedMs": 30123.823300000004,
+        "exitCode": 0,
+        "stdout": "{\"id\":1,\"result\":{\"isDirectory\":false,\"isFile\":true,\"isSymlink\":false,\"size\":4096,\"createdAtMs\":1794128650340,\"modifiedAtMs\":1794128650340}}\n{\"id\":2,\"result\":{\"isDirectory\":false,\"isFile\":true,\"isSymlink\":false,\"size\":4096,\"createdAtMs\":1794128650340,\"modifiedAtMs\":1794128650340}}\n",
+        "stderr": "",
+        "events": [
+          {
+            "stream": "stdout",
+            "atMs": 641.1217000000033,
+            "bytes": 141
+          },
+          {
+            "stream": "stdout",
+            "atMs": 641.4357000000018,
+            "bytes": 141
+          }
+        ]
+      }
+    },
+    {
+      "type": "one-request-EOF",
+      "mode": "elevated",
+      "elapsedMs": 661.5092000000004,
+      "exitCode": 0,
+      "stdout": "{\"id\":3,\"result\":{\"isDirectory\":false,\"isFile\":true,\"isSymlink\":false,\"size\":4096,\"createdAtMs\":1794128650340,\"modifiedAtMs\":1794128650340}}\n",
+      "stderr": "",
+      "events": [
+        {
+          "stream": "stdout",
+          "atMs": 622.5233000000007,
+          "bytes": 141
+        }
+      ]
+    },
+    {
+      "type": "input-marker-threshold",
+      "mode": "elevated",
+      "checkpoints": [
+        {
+          "sent": 0,
+          "marker": "{\"event\":\"started\",\"at\":1794128728471}\n",
+          "stdout": "started\n"
+        },
+        {
+          "sent": 2,
+          "marker": "{\"event\":\"started\",\"at\":1794128728471}\n{\"event\":\"data\",\"length\":2,\"total\":2,\"at\":1794128729355}\n",
+          "stdout": "started\n{\"received\":2}\n"
+        },
+        {
+          "sent": 1026,
+          "marker": "{\"event\":\"started\",\"at\":1794128728471}\n{\"event\":\"data\",\"length\":2,\"total\":2,\"at\":1794128729355}\n{\"event\":\"data\",\"length\":1024,\"total\":1026,\"at\":1794128730856}\n",
+          "stdout": "started\n{\"received\":2}\n{\"received\":1026}\n"
+        },
+        {
+          "sent": 9218,
+          "marker": "{\"event\":\"started\",\"at\":1794128728471}\n{\"event\":\"data\",\"length\":2,\"total\":2,\"at\":1794128729355}\n{\"event\":\"data\",\"length\":1024,\"total\":1026,\"at\":1794128730856}\n{\"event\":\"data\",\"length\":8192,\"total\":9218,\"at\":1794128732369}\n",
+          "stdout": "started\n{\"received\":2}\n{\"received\":1026}\n{\"received\":9218}\n"
+        },
+        {
+          "sent": 74754,
+          "marker": "{\"event\":\"started\",\"at\":1794128728471}\n{\"event\":\"data\",\"length\":2,\"total\":2,\"at\":1794128729355}\n{\"event\":\"data\",\"length\":1024,\"total\":1026,\"at\":1794128730856}\n{\"event\":\"data\",\"length\":8192,\"total\":9218,\"at\":1794128732369}\n{\"event\":\"data\",\"length\":8192,\"total\":17410,\"at\":1794128733875}\n{\"event\":\"data\",\"length\":12288,\"total\":29698,\"at\":1794128733876}\n{\"event\":\"data\",\"length\":12288,\"total\":41986,\"at\":1794128733877}\n{\"event\":\"data\",\"length\":12288,\"total\":54274,\"at\":1794128733877}\n{\"event\":\"data\",\"length\":12288,\"total\":66562,\"at\":1794128733878}\n{\"event\":\"data\",\"length\":8192,\"total\":74754,\"at\":1794128733878}\n",
+          "stdout": "started\n{\"received\":2}\n{\"received\":1026}\n{\"received\":9218}\n{\"received\":17410}\n{\"received\":29698}\n{\"received\":41986}\n{\"received\":54274}\n{\"received\":66562}\n{\"received\":74754}\n"
+        },
+        {
+          "sent": 336898,
+          "marker": "{\"event\":\"started\",\"at\":1794128728471}\n{\"event\":\"data\",\"length\":2,\"total\":2,\"at\":1794128729355}\n{\"event\":\"data\",\"length\":1024,\"total\":1026,\"at\":1794128730856}\n{\"event\":\"data\",\"length\":8192,\"total\":9218,\"at\":1794128732369}\n{\"event\":\"data\",\"length\":8192,\"total\":17410,\"at\":1794128733875}\n{\"event\":\"data\",\"length\":12288,\"total\":29698,\"at\":1794128733876}\n{\"event\":\"data\",\"length\":12288,\"total\":41986,\"at\":1794128733877}\n{\"event\":\"data\",\"length\":12288,\"total\":54274,\"at\":1794128733877}\n{\"event\":\"data\",\"length\":12288,\"total\":66562,\"at\":1794128733878}\n{\"event\":\"data\",\"length\":8192,\"total\":74754,\"at\":1794128733878}\n{\"event\":\"data\",\"length\":8192,\"total\":82946,\"at\":1794128735389}\n{\"event\":\"data\",\"length\":12288,\"total\":95234,\"at\":1794128735390}\n{\"event\":\"data\",\"length\":12288,\"total\":107522,\"at\":1794128735391}\n{\"event\":\"data\",\"length\":12288,\"total\":119810,\"at\":1794128735391}\n{\"event\":\"data\",\"length\":12288,\"total\":132098,\"at\":1794128735392}\n{\"event\":\"data\",\"length\":12288,\"total\":144386,\"at\":1794128735393}\n{\"event\":\"data\",\"length\":12288,\"total\":156674,\"at\":1794128735393}\n{\"event\":\"data\",\"length\":12288,\"total\":168962,\"at\":1794128735394}\n{\"event\":\"data\",\"length\":12288,\"total\":181250,\"at\":1794128735394}\n{\"event\":\"data\",\"length\":12288,\"total\":193538,\"at\":1794128735395}\n{\"event\":\"data\",\"length\":12288,\"total\":205826,\"at\":1794128735396}\n{\"event\":\"data\",\"length\":12288,\"total\":218114,\"at\":1794128735396}\n{\"event\":\"data\",\"length\":12288,\"total\":230402,\"at\":1794128735397}\n{\"event\":\"data\",\"length\":12288,\"total\":242690,\"at\":1794128735397}\n{\"event\":\"data\",\"length\":12288,\"total\":254978,\"at\":1794128735398}\n{\"event\":\"data\",\"length\":12288,\"total\":267266,\"at\":1794128735398}\n{\"event\":\"data\",\"length\":12288,\"total\":279554,\"at\":1794128735399}\n{\"event\":\"data\",\"length\":12288,\"total\":291842,\"at\":1794128735399}\n{\"event\":\"data\",\"length\":12288,\"total\":304130,\"at\":1794128735400}\n{\"event\":\"data\",\"length\":12288,\"total\":316418,\"at\":1794128735400}\n{\"event\":\"data\",\"length\":12288,\"total\":328706,\"at\":1794128735401}\n{\"event\":\"data\",\"length\":8192,\"total\":336898,\"at\":1794128735401}\n",
+          "stdout": "started\n{\"received\":2}\n{\"received\":1026}\n{\"received\":9218}\n{\"received\":17410}\n{\"received\":29698}\n{\"received\":41986}\n{\"received\":54274}\n{\"received\":66562}\n{\"received\":74754}\n{\"received\":82946}\n{\"received\":95234}\n{\"received\":107522}\n{\"received\":119810}\n{\"received\":132098}\n{\"received\":144386}\n{\"received\":156674}\n{\"received\":168962}\n{\"received\":181250}\n{\"received\":193538}\n{\"received\":205826}\n{\"received\":218114}\n{\"received\":230402}\n{\"received\":242690}\n{\"received\":254978}\n{\"received\":267266}\n{\"received\":279554}\n{\"received\":291842}\n{\"received\":304130}\n{\"received\":316418}\n{\"received\":328706}\n{\"received\":336898}\n"
+        }
+      ],
+      "afterEOF": {
+        "elapsedMs": 9168.490300000005,
+        "exitCode": 0,
+        "stdout": "started\n{\"received\":2}\n{\"received\":1026}\n{\"received\":9218}\n{\"received\":17410}\n{\"received\":29698}\n{\"received\":41986}\n{\"received\":54274}\n{\"received\":66562}\n{\"received\":74754}\n{\"received\":82946}\n{\"received\":95234}\n{\"received\":107522}\n{\"received\":119810}\n{\"received\":132098}\n{\"received\":144386}\n{\"received\":156674}\n{\"received\":168962}\n{\"received\":181250}\n{\"received\":193538}\n{\"received\":205826}\n{\"received\":218114}\n{\"received\":230402}\n{\"received\":242690}\n{\"received\":254978}\n{\"received\":267266}\n{\"received\":279554}\n{\"received\":291842}\n{\"received\":304130}\n{\"received\":316418}\n{\"received\":328706}\n{\"received\":336898}\n",
+        "stderr": "",
+        "events": [
+          {
+            "stream": "stdout",
+            "atMs": 630.7057000000059,
+            "bytes": 8
+          },
+          {
+            "stream": "stdout",
+            "atMs": 1513.1465000000026,
+            "bytes": 15
+          },
+          {
+            "stream": "stdout",
+            "atMs": 3014.174700000003,
+            "bytes": 18
+          },
+          {
+            "stream": "stdout",
+            "atMs": 4527.2307,
+            "bytes": 18
+          },
+          {
+            "stream": "stdout",
+            "atMs": 6033.123200000002,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 6033.686600000001,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 6034.260999999999,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 6034.804300000003,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 6035.324800000002,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 6036.0973000000085,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7547.0715000000055,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7547.631399999998,
+            "bytes": 19
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7548.332699999999,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7548.843099999998,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7549.368499999997,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7550.144800000009,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7550.677800000005,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7551.209900000002,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7551.971300000005,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7552.536800000002,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7553.030500000008,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7553.474499999997,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7554.184500000003,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7554.646600000007,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7555.345199999996,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7555.945000000007,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7556.3793000000005,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7556.8079,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7557.209600000002,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7557.835200000001,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7558.294000000009,
+            "bytes": 20
+          },
+          {
+            "stream": "stdout",
+            "atMs": 7558.7402,
+            "bytes": 20
+          }
+        ]
+      },
+      "finalMarker": "{\"event\":\"started\",\"at\":1794128728471}\n{\"event\":\"data\",\"length\":2,\"total\":2,\"at\":1794128729355}\n{\"event\":\"data\",\"length\":1024,\"total\":1026,\"at\":1794128730856}\n{\"event\":\"data\",\"length\":8192,\"total\":9218,\"at\":1794128732369}\n{\"event\":\"data\",\"length\":8192,\"total\":17410,\"at\":1794128733875}\n{\"event\":\"data\",\"length\":12288,\"total\":29698,\"at\":1794128733876}\n{\"event\":\"data\",\"length\":12288,\"total\":41986,\"at\":1794128733877}\n{\"event\":\"data\",\"length\":12288,\"total\":54274,\"at\":1794128733877}\n{\"event\":\"data\",\"length\":12288,\"total\":66562,\"at\":1794128733878}\n{\"event\":\"data\",\"length\":8192,\"total\":74754,\"at\":1794128733878}\n{\"event\":\"data\",\"length\":8192,\"total\":82946,\"at\":1794128735389}\n{\"event\":\"data\",\"length\":12288,\"total\":95234,\"at\":1794128735390}\n{\"event\":\"data\",\"length\":12288,\"total\":107522,\"at\":1794128735391}\n{\"event\":\"data\",\"length\":12288,\"total\":119810,\"at\":1794128735391}\n{\"event\":\"data\",\"length\":12288,\"total\":132098,\"at\":1794128735392}\n{\"event\":\"data\",\"length\":12288,\"total\":144386,\"at\":1794128735393}\n{\"event\":\"data\",\"length\":12288,\"total\":156674,\"at\":1794128735393}\n{\"event\":\"data\",\"length\":12288,\"total\":168962,\"at\":1794128735394}\n{\"event\":\"data\",\"length\":12288,\"total\":181250,\"at\":1794128735394}\n{\"event\":\"data\",\"length\":12288,\"total\":193538,\"at\":1794128735395}\n{\"event\":\"data\",\"length\":12288,\"total\":205826,\"at\":1794128735396}\n{\"event\":\"data\",\"length\":12288,\"total\":218114,\"at\":1794128735396}\n{\"event\":\"data\",\"length\":12288,\"total\":230402,\"at\":1794128735397}\n{\"event\":\"data\",\"length\":12288,\"total\":242690,\"at\":1794128735397}\n{\"event\":\"data\",\"length\":12288,\"total\":254978,\"at\":1794128735398}\n{\"event\":\"data\",\"length\":12288,\"total\":267266,\"at\":1794128735398}\n{\"event\":\"data\",\"length\":12288,\"total\":279554,\"at\":1794128735399}\n{\"event\":\"data\",\"length\":12288,\"total\":291842,\"at\":1794128735399}\n{\"event\":\"data\",\"length\":12288,\"total\":304130,\"at\":1794128735400}\n{\"event\":\"data\",\"length\":12288,\"total\":316418,\"at\":1794128735400}\n{\"event\":\"data\",\"length\":12288,\"total\":328706,\"at\":1794128735401}\n{\"event\":\"data\",\"length\":8192,\"total\":336898,\"at\":1794128735401}\n{\"event\":\"end\",\"at\":1794128736901}\n"
+    },
+    {
+      "type": "batch",
+      "mode": "elevated",
+      "count": 10,
+      "round": 1,
+      "totalMs": 767.4625999999989,
+      "perItemMs": 76.7462599999999,
+      "responses": 10,
+      "errors": 0,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "type": "batch",
+      "mode": "elevated",
+      "count": 10,
+      "round": 2,
+      "totalMs": 762.6849000000075,
+      "perItemMs": 76.26849000000075,
+      "responses": 10,
+      "errors": 0,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "type": "batch",
+      "mode": "elevated",
+      "count": 10,
+      "round": 3,
+      "totalMs": 771.0997000000061,
+      "perItemMs": 77.10997000000062,
+      "responses": 10,
+      "errors": 0,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "type": "batch",
+      "mode": "elevated",
+      "count": 50,
+      "round": 1,
+      "totalMs": 768.9100000000035,
+      "perItemMs": 15.37820000000007,
+      "responses": 50,
+      "errors": 0,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "type": "batch",
+      "mode": "elevated",
+      "count": 50,
+      "round": 2,
+      "totalMs": 771.1811999999918,
+      "perItemMs": 15.423623999999837,
+      "responses": 50,
+      "errors": 0,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "type": "batch",
+      "mode": "elevated",
+      "count": 50,
+      "round": 3,
+      "totalMs": 772.6475999999966,
+      "perItemMs": 15.452951999999932,
+      "responses": 50,
+      "errors": 0,
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "type": "socket",
+      "mode": "elevated",
+      "channel": "tcp",
+      "address": {
+        "host": "127.0.0.1",
+        "port": 53003
+      },
+      "connected": true,
+      "startupMs": 766.0924999999988,
+      "isolation": {
+        "outsideWrite": "EPERM"
+      },
+      "denials": [
+        {
+          "name": "outside-write",
+          "error": {
+            "code": -32001,
+            "message": "sunmoon-agent local ceiling: filesystem operation refused or unavailable",
+            "data": {
+              "reason": "invalid operation"
+            }
+          },
+          "unexpectedResult": false
+        },
+        {
+          "name": "synthetic-auth",
+          "error": {
+            "code": -32001,
+            "message": "sunmoon-agent local ceiling: filesystem operation refused or unavailable",
+            "data": {
+              "reason": "invalid operation"
+            }
+          },
+          "unexpectedResult": false
+        },
+        {
+          "name": "synthetic-secret",
+          "error": {
+            "code": -32001,
+            "message": "sunmoon-agent local ceiling: filesystem operation refused or unavailable",
+            "data": {
+              "reason": "invalid operation"
+            }
+          },
+          "unexpectedResult": false
+        }
+      ],
+      "rounds": [
+        {
+          "round": 1,
+          "kind": "metadata50",
+          "count": 50,
+          "samplesMs": [
+            1.9073999999964144,
+            1.1067000000039116,
+            0.8776999999972759,
+            0.7451000000000931,
+            1.0738999999884982,
+            0.7826999999961117,
+            0.9759999999951106,
+            0.7379000000073574,
+            0.6477000000013504,
+            0.8610000000044238,
+            0.7793999999994412,
+            0.707300000009127,
+            0.7143000000069151,
+            0.7036999999982072,
+            0.7345000000059372,
+            0.8543999999965308,
+            0.7955999999976484,
+            0.5853000000061002,
+            0.6010000000096625,
+            0.677800000004936,
+            0.5160000000032596,
+            0.5878000000084285,
+            0.6093000000109896,
+            0.5972000000037951,
+            1.023300000000745,
+            0.5853000000061002,
+            0.8668000000034226,
+            0.8127999999996973,
+            1.1930999999894993,
+            0.7040000000124564,
+            0.6189999999915017,
+            0.6266999999934342,
+            0.5538000000087777,
+            0.49539999999979045,
+            0.7073999999993248,
+            0.9499000000068918,
+            0.7586000000010245,
+            0.971399999994901,
+            0.6367000000027474,
+            0.9826000000030035,
+            0.7131999999983236,
+            0.7591000000102213,
+            0.5569999999861466,
+            0.5616999999911059,
+            0.5806999999913387,
+            0.6454999999987194,
+            0.4987000000110129,
+            0.511899999997695,
+            0.8565999999991618,
+            0.4858000000094762
+          ]
+        },
+        {
+          "round": 1,
+          "kind": "read20",
+          "count": 20,
+          "samplesMs": [
+            1.4487999999983003,
+            1.5685999999986961,
+            0.9799999999959255,
+            0.9328999999997905,
+            1.025999999998021,
+            0.8170000000100117,
+            0.9008000000030734,
+            1.4928999999974621,
+            0.7976999999955297,
+            0.782999999995809,
+            0.7595000000001164,
+            0.7681000000011409,
+            0.8418999999994412,
+            0.7667999999976018,
+            0.72620000000461,
+            0.8852999999944586,
+            0.8151999999972759,
+            1.1423000000067987,
+            0.8854999999894062,
+            0.7057000000058906
+          ]
+        },
+        {
+          "round": 1,
+          "kind": "write10",
+          "count": 10,
+          "samplesMs": [
+            2.2866999999969266,
+            1.3138999999937369,
+            1.2684000000008382,
+            1.1200000000098953,
+            1.1817000000010012,
+            1.3016999999963446,
+            1.1825000000098953,
+            1.2508000000088941,
+            1.1220999999932246,
+            1.0207999999984168
+          ]
+        },
+        {
+          "round": 2,
+          "kind": "metadata50",
+          "count": 50,
+          "samplesMs": [
+            0.5423000000009779,
+            0.642600000006496,
+            0.5975999999936903,
+            0.5353999999933876,
+            0.5652000000118278,
+            0.5551999999879627,
+            0.5371000000013737,
+            0.5549000000028173,
+            0.8338999999978114,
+            0.5227000000013504,
+            0.5595999999932246,
+            0.8800999999948544,
+            0.5433999999950174,
+            0.9658999999955995,
+            0.4957999999896856,
+            0.5279000000009546,
+            0.5206000000034692,
+            0.4850000000005821,
+            0.5446999999985565,
+            0.524199999999837,
+            0.8199000000022352,
+            0.4949999999953434,
+            0.4135999999998603,
+            0.6015999999945052,
+            0.5345999999990454,
+            0.5181999999913387,
+            0.5308999999979278,
+            0.6001999999862164,
+            0.5233000000007451,
+            0.46670000000449363,
+            0.4576000000088243,
+            0.48489999999583233,
+            0.5084999999962747,
+            0.4781000000075437,
+            0.5699000000022352,
+            0.5463999999919906,
+            0.536099999997532,
+            0.6270999999978812,
+            0.5347000000037951,
+            0.5372999999963213,
+            0.5051999999996042,
+            1.0187000000005355,
+            0.6606000000028871,
+            0.5564999999915017,
+            0.550600000002305,
+            0.5771999999997206,
+            0.48589999999967404,
+            0.860899999999674,
+            0.5676999999996042,
+            0.5524000000004889
+          ]
+        },
+        {
+          "round": 2,
+          "kind": "read20",
+          "count": 20,
+          "samplesMs": [
+            1.0124999999970896,
+            0.7937999999994645,
+            0.8159000000014203,
+            0.8800999999948544,
+            1.132499999992433,
+            0.7764999999926658,
+            0.7234000000025844,
+            0.7158000000054017,
+            0.8414000000047963,
+            0.740300000004936,
+            0.8990000000048894,
+            1.382499999992433,
+            0.8220000000001164,
+            1.3294000000023516,
+            0.9496000000071945,
+            1.2285999999876367,
+            1.2035000000032596,
+            0.731500000008964,
+            0.8298000000067987,
+            0.7997000000032131
+          ]
+        },
+        {
+          "round": 2,
+          "kind": "write10",
+          "count": 10,
+          "samplesMs": [
+            2.481599999999162,
+            1.2001000000018394,
+            1.118000000002212,
+            1.6362999999983003,
+            1.0341000000044005,
+            1.0446000000083586,
+            1.2010999999911292,
+            1.685300000011921,
+            1.224000000001979,
+            1.0249000000039814
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "metadata50",
+          "count": 50,
+          "samplesMs": [
+            0.5981999999930849,
+            0.6063999999896623,
+            0.5077000000019325,
+            0.43489999999292195,
+            0.595499999995809,
+            0.5377000000007683,
+            0.6037000000069384,
+            0.775500000003376,
+            0.5653000000020256,
+            0.6320999999879859,
+            0.5250000000087311,
+            0.5368000000016764,
+            0.517600000006496,
+            0.5138000000006286,
+            0.5031999999919208,
+            0.49859999999171123,
+            0.5938999999925727,
+            0.5812999999907333,
+            0.5283999999955995,
+            0.5636000000085915,
+            0.5097999999998137,
+            0.544000000008964,
+            0.5835000000079162,
+            0.5158999999985099,
+            0.5227000000013504,
+            0.5432000000000698,
+            0.5017999999981839,
+            0.6226000000024214,
+            0.6192000000010012,
+            0.6205000000045402,
+            0.6493000000045868,
+            0.5075000000069849,
+            0.4992999999958556,
+            0.5083000000013271,
+            0.572199999995064,
+            0.5336000000097556,
+            0.680000000007567,
+            0.567799999989802,
+            0.5975999999936903,
+            0.5684999999939464,
+            0.6627999999909662,
+            0.6055999999953201,
+            0.568200000008801,
+            0.515400000003865,
+            0.8509000000049127,
+            0.4922999999980675,
+            0.6267999999981839,
+            0.6758000000118045,
+            0.5038999999960652,
+            0.5344999999942956
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "read20",
+          "count": 20,
+          "samplesMs": [
+            0.9988000000012107,
+            0.7810999999928754,
+            0.813800000003539,
+            0.8291000000026543,
+            1.084900000001653,
+            1.1620000000111759,
+            0.8260000000009313,
+            0.7963000000017928,
+            0.7653999999893131,
+            1.0115000000077998,
+            0.7335999999922933,
+            0.785200000012992,
+            1.2033999999985099,
+            0.7240999999921769,
+            0.8165999999910127,
+            3.3165999999910127,
+            1.1119999999937136,
+            0.8016000000061467,
+            0.899199999999837,
+            1.0135000000009313
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "write10",
+          "count": 10,
+          "samplesMs": [
+            1.9043000000092434,
+            1.5874999999941792,
+            1.1613999999972293,
+            1.3986999999906402,
+            1.2458000000042375,
+            1.4786000000021886,
+            1.9153999999980442,
+            1.1505999999935739,
+            1.1950999999971827,
+            1.2691000000049826
+          ]
+        }
+      ],
+      "marker": "started\nconnected\n",
+      "stderr": "",
+      "outsideExists": false
+    },
+    {
+      "type": "socket",
+      "mode": "elevated",
+      "channel": "pipe",
+      "address": "\\\\.\\pipe\\sunmoon-resident-probe-12812-elevated",
+      "connected": false,
+      "startupMs": 767.4704999999958,
+      "marker": "started\nconnect-error:EPERM\n",
+      "stderr": "",
+      "outsideExists": false
+    }
+  ],
+  "outcome": "completed",
+  "finishedAt": "2026-11-08T09:05:43.937Z"
+}

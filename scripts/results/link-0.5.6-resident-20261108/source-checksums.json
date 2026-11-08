@@ -1,0 +1,15 @@
+{
+  "codexTag": "rust-v0.155.1",
+  "codexCommit": "be2951ea34f0d295ed0becf97079f92fa5f6950e",
+  "files": {
+    "debug_sandbox.rs": "9de78749cbf8305b0731361439b84769d91598e3e5df4fae861c316b88f4e6ec",
+    "elevated.rs": "c1f91c68c0d6088d75bc1b71cf3475051d6dcca58dbb6bcf8cf277c69aa83ca9",
+    "stdio_bridge.rs": "6f5aa7818ec5508f28f5857f6ffda4215ad50951d85ecab0a1df1d4b77dacb93"
+  },
+  "probeScripts": {
+    "followup.mjs": "b2601223b6a8058f34ee25dc89417b58a22970d9c0c1824356cb4ccedc72dc4b",
+    "probe.mjs": "528dfe9ec8fda0cd88344137166c97d0afba32eec82a1bca5faeae33eac7e942",
+    "socket-adapter-source.mjs": "6bb40fa416722d6f7ba2d10aae76b474f375cde0bd6f3efadd797190bd3076e1",
+    "socket-probe.mjs": "cc27ba19870259b9233ef12dc8e4ea5c23391eecd5744f9c13b48e28e60e94ee"
+  }
+}
