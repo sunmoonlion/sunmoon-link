@@ -113,12 +113,46 @@ export function windowsHelperArgs(home: string, roots: readonly string[], mode: 
   return ["-c", profile, "-c", `windows.sandbox="${mode}"`, "sandbox", "--permission-profile", "sunmoon_files", "-C", roots[0] ?? home, "--", helper.node, helper.script, config];
 }
 
+/** Shared by every WindowsFiles in this process. Set once a resident helper did
+ * not answer its readiness ping while stdin stayed open (the 11-01 symptom:
+ * replies only after EOF). From then on each call gets its own helper. */
+export interface ResidentFallback { residentUnavailable: boolean }
+const processFallback: ResidentFallback = { residentUnavailable: false };
+
+export interface WindowsFilesTiming { readyMs: number; callMs: number; idleMs: number; idleWithHandlesMs: number }
+const DEFAULT_TIMING: WindowsFilesTiming = { readyMs: 10000, callMs: 15000, idleMs: 30000, idleWithHandlesMs: 600000 };
+
+interface Resident {
+  child: ChildProcess;
+  pending: Map<number, { resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }>;
+  ready: Promise<void>;
+  dead: boolean;
+  idle?: NodeJS.Timeout;
+}
+
+/** Filesystem RPC through the sandboxed Node helper. One resident helper per
+ * instance serves calls in order over stdin/stdout (sandbox start-up costs
+ * ~0.6–1 s, a warm call ~1 ms). The helper is retired when idle so it does not
+ * keep holding its working directory. If the helper never answers its ping
+ * while stdin is open, the process switches to one helper per call, ended with
+ * EOF, which is how 0.5.5–0.5.6 always ran. Calls are never replayed after a
+ * timeout or crash: the caller sees the error and a later call starts afresh. */
 export class WindowsFiles {
   private seq = 0;
   private notFoundPromise?: Promise<{ file: any; directory: any }>;
   private closed = false;
+  private resident?: Resident;
+  private handles = new Set<string>();
+  private timing: WindowsFilesTiming;
 
-  constructor(private opts: { url: () => string; home: string; roots: readonly string[]; mode: WindowsMode; writable: boolean; helper: WindowsHelper; temporary?: string }) {}
+  constructor(private opts: {
+    url: () => string; home: string; roots: readonly string[]; mode: WindowsMode; writable: boolean; helper: WindowsHelper; temporary?: string;
+    /** Test seams; production uses the Codex sandbox, taskkill and the process-wide fallback. */
+    spawnHelper?: (args: string[]) => ChildProcess; killTree?: (child: ChildProcess) => Promise<void>;
+    fallback?: ResidentFallback; timing?: Partial<WindowsFilesTiming>;
+  }) {
+    this.timing = { ...DEFAULT_TIMING, ...opts.timing };
+  }
 
   private async getNotFound(): Promise<{ file: any; directory: any }> {
     if (!this.notFoundPromise) {
@@ -143,94 +177,163 @@ export class WindowsFiles {
     return this.notFoundPromise;
   }
 
+  private get fallback(): ResidentFallback { return this.opts.fallback ?? processFallback; }
+
+  private spawnHelper(notFound: { file: any; directory: any }): ChildProcess {
+    const o = this.opts;
+    const args = windowsHelperArgs(o.home, o.roots, o.mode, o.writable, o.helper, notFound);
+    const child = o.spawnHelper ? o.spawnHelper(args) : spawn(locateCodex().codexBin, args, {
+      cwd: o.roots[0] ?? o.home,
+      env: windowsEnvironment(o.home, {}, process.env, o.temporary),
+      stdio: ["pipe", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    // Directory responses can span pipe chunks in the middle of a UTF-8 name.
+    child.stdout!.setEncoding("utf8");
+    // Drain without forwarding paths, command output or credentials into logs.
+    child.stderr!.resume();
+    child.stdin!.on("error", () => {});
+    return child;
+  }
+
+  private kill(child: ChildProcess): Promise<void> {
+    return (this.opts.killTree ?? killWindowsTree)(child).catch(() => {});
+  }
+
   async call(method: string, params: any): Promise<any> {
     if (this.closed) throw new Error("filesystem worker closed");
     const notFound = await this.getNotFound();
     if (this.closed) throw new Error("filesystem worker closed");
-    const id = ++this.seq;
-    const o = this.opts;
+    if (this.fallback.residentUnavailable) return this.callOnce(method, params, notFound);
 
-    const child = spawn(
-      locateCodex().codexBin,
-      windowsHelperArgs(o.home, o.roots, o.mode, o.writable, o.helper, notFound),
-      {
-        cwd: o.roots[0] ?? o.home,
-        env: windowsEnvironment(o.home, {}, process.env, o.temporary),
-        stdio: ["pipe", "pipe", "pipe"],
-        windowsHide: true,
-      }
-    );
+    let r = this.resident;
+    if (!r || r.dead) r = this.resident = this.startResident(notFound);
+    try {
+      await r.ready;
+    } catch (error) {
+      // The ping got no answer: this request was never written to the helper,
+      // so sending it through a one-shot helper is not a replay.
+      if (this.fallback.residentUnavailable && !this.closed) return this.callOnce(method, params, notFound);
+      throw error;
+    }
+    if (this.closed) throw new Error("filesystem worker closed");
+    if (r.dead) throw new Error("filesystem worker exited");
 
+    if (r.idle) { clearTimeout(r.idle); r.idle = undefined; }
+    try {
+      const v = await this.send(r, method, params, this.timing.callMs);
+      if (method === "fs/open" && v?.result && typeof params?.handleId === "string") this.handles.add(params.handleId);
+      if (method === "fs/close" && v?.result && typeof params?.handleId === "string") this.handles.delete(params.handleId);
+      return v;
+    } finally {
+      this.scheduleIdle(r);
+    }
+  }
+
+  private startResident(notFound: { file: any; directory: any }): Resident {
+    const child = this.spawnHelper(notFound);
+    const r: Resident = { child, pending: new Map(), ready: Promise.resolve(), dead: false };
     let buffer = "";
-    child.stdout!.setEncoding("utf8");
-    child.stderr!.resume();
-    child.stdin!.on("error", () => {});
+    child.stdout!.on("data", d => {
+      buffer += String(d);
+      if (buffer.length > 16 * 1024 * 1024) { void this.fail(r, "filesystem worker buffer overflow"); return; }
+      let n;
+      while ((n = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, n);
+        buffer = buffer.slice(n + 1);
+        let v: any;
+        try { v = JSON.parse(line); } catch { void this.fail(r, "filesystem worker protocol error"); return; }
+        const p = r.pending.get(v?.id);
+        if (p) { clearTimeout(p.timer); r.pending.delete(v.id); p.resolve(v); }
+      }
+    });
+    child.once("error", err => { void this.fail(r, `filesystem worker process error: ${err.message}`); });
+    child.once("exit", (code, signal) => { void this.fail(r, `filesystem worker exited prematurely: code=${code ?? signal}`); });
+    r.ready = this.send(r, "sunmoon/ping", {}, this.timing.readyMs, () => { this.fallback.residentUnavailable = true; }).then(() => {});
+    r.ready.catch(() => {});
+    return r;
+  }
 
+  private send(r: Resident, method: string, params: any, timeoutMs: number, onTimeout?: () => void): Promise<any> {
+    if (r.dead) return Promise.reject(new Error("filesystem worker exited"));
+    const id = ++this.seq;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        onTimeout?.();
+        void this.fail(r, `filesystem worker timeout: ${method}`);
+      }, timeoutMs);
+      r.pending.set(id, { resolve, reject, timer });
+      r.child.stdin!.write(JSON.stringify({ id, method, params }) + "\n");
+    });
+  }
+
+  private fail(r: Resident, message: string): Promise<void> {
+    if (r.dead) return Promise.resolve();
+    r.dead = true;
+    if (this.resident === r) { this.resident = undefined; this.handles.clear(); }
+    if (r.idle) clearTimeout(r.idle);
+    for (const p of r.pending.values()) { clearTimeout(p.timer); p.reject(new Error(message)); }
+    r.pending.clear();
+    return this.kill(r.child);
+  }
+
+  private scheduleIdle(r: Resident): void {
+    if (r.dead || this.resident !== r || r.pending.size > 0) return;
+    if (r.idle) clearTimeout(r.idle);
+    r.idle = setTimeout(() => { void this.retire(r); }, this.handles.size ? this.timing.idleWithHandlesMs : this.timing.idleMs);
+    r.idle.unref?.();
+  }
+
+  /** Idle: end stdin so the helper closes its handles and exits by itself. */
+  private async retire(r: Resident): Promise<void> {
+    if (r.dead || r.pending.size > 0) return;
+    r.dead = true;
+    if (this.resident === r) { this.resident = undefined; this.handles.clear(); }
+    r.child.stdin!.end();
+    const exited = await new Promise<boolean>(resolve => {
+      if (r.child.exitCode !== null || r.child.signalCode !== null) return resolve(true);
+      const t = setTimeout(() => resolve(false), 2000);
+      t.unref?.();
+      r.child.once("exit", () => { clearTimeout(t); resolve(true); });
+    });
+    if (!exited) await this.kill(r.child);
+  }
+
+  /** One helper for one request, stdin ended right after the frame. */
+  private callOnce(method: string, params: any, notFound: { file: any; directory: any }): Promise<any> {
+    const id = ++this.seq;
+    const child = this.spawnHelper(notFound);
+    let buffer = "";
     return new Promise((resolve, reject) => {
       let settled = false;
-      const timer = setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          void killWindowsTree(child);
-          reject(new Error(`filesystem worker timeout: ${method}`));
-        }
-      }, 15000);
-
+      const settle = (error: Error | null, value?: any) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (error) reject(error); else resolve(value);
+        void this.kill(child);
+      };
+      const timer = setTimeout(() => settle(new Error(`filesystem worker timeout: ${method}`)), this.timing.callMs);
       child.stdout!.on("data", d => {
         buffer += String(d);
-        if (buffer.length > 16 * 1024 * 1024) {
-          if (!settled) {
-            settled = true;
-            clearTimeout(timer);
-            void killWindowsTree(child);
-            reject(new Error("filesystem worker buffer overflow"));
-          }
-          return;
-        }
+        if (buffer.length > 16 * 1024 * 1024) { settle(new Error("filesystem worker buffer overflow")); return; }
         let n;
         while ((n = buffer.indexOf("\n")) >= 0) {
           const line = buffer.slice(0, n);
           buffer = buffer.slice(n + 1);
-          try {
-            const v = JSON.parse(line);
-            if (v && v.id === id) {
-              if (!settled) {
-                settled = true;
-                clearTimeout(timer);
-                resolve(v);
-                void killWindowsTree(child);
-              }
-              return;
-            }
-          } catch {}
+          try { const v = JSON.parse(line); if (v && v.id === id) { settle(null, v); return; } } catch {}
         }
       });
-
-      child.once("error", err => {
-        if (!settled) {
-          settled = true;
-          clearTimeout(timer);
-          reject(new Error(`filesystem worker process error: ${err.message}`));
-        }
-      });
-
-      child.once("exit", (code, signal) => {
-        if (!settled) {
-          settled = true;
-          clearTimeout(timer);
-          reject(new Error(`filesystem worker exited prematurely: code=${code ?? signal}`));
-        }
-      });
-
-      // Send the single JSON-RPC frame and close stdin (send EOF).
-      // This allows the Windows helper inside Codex sandbox to process immediately
-      // without hanging on persistent stdio pipe buffers.
+      child.once("error", err => settle(new Error(`filesystem worker process error: ${err.message}`)));
+      child.once("exit", (code, signal) => settle(new Error(`filesystem worker exited prematurely: code=${code ?? signal}`)));
       child.stdin!.end(JSON.stringify({ id, method, params }) + "\n");
     });
   }
 
   async close(): Promise<void> {
     this.closed = true;
+    const r = this.resident;
+    if (r) await this.fail(r, "filesystem worker closed");
   }
 }
 

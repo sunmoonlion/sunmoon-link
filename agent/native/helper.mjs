@@ -140,6 +140,9 @@ if (process.argv[2] === '--pin-directory') {
   function dispatch(method, p) {
     const target = p.path ? local(p.path, ['fs/writeFile', 'fs/createDirectory', 'fs/remove'].includes(method)) : null;
     switch (method) {
+      // Readiness check of the resident helper (WindowsFiles). Internal only:
+      // the bridge forwards fs/* and environmentConfig/read, never this.
+      case 'sunmoon/ping': return {};
       // Private service projection: same pins/identity checks as Codex FS, no
       // write operations, handles or executable parameters exposed remotely.
       case 'service/getMetadata': {
