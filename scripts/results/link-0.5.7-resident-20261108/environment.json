@@ -1,0 +1,13 @@
+{
+  "Windows": "Microsoft Windows 11 家庭版 中文版",
+  "Build": "26300",
+  "CPU": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S          ",
+  "Disks": [
+    {
+      "FriendlyName": "KBG60ZNS1T02 KIOXIA",
+      "MediaType": "SSD",
+      "Size": 1024209543168
+    }
+  ],
+  "DefenderRealtime": false
+}

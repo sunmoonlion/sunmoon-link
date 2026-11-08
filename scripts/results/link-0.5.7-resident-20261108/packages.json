@@ -1,0 +1,44 @@
+{
+  "windows": {
+    "name": "sunmoon-link-0.5.7-686a74c-windows-x64",
+    "sourceRevision": "686a74c463360b33a56accd41ae0904647323a8a",
+    "agentVersion": "0.5.7",
+    "codexVersion": "0.155.1",
+    "nodeVersion": "24.19.0",
+    "site": "dev-kind.json",
+    "zip": "/home/zymun/sunmoon-probe-runs/link-057-20261108/windows/sunmoon-link-0.5.7-686a74c-windows-x64.zip",
+    "zipSha256": "2179e6d82557d0b26f215e277d4480b041cf494496efcaefdeb2405735f6fc51",
+    "zipBytes": 180991581,
+    "zipEntries": 110,
+    "manifestSha256": "762fa2bc2021aceee04c3f906c5776d22d44ed1ef0d3ef1526fd7f4106ba0ac0",
+    "files": 110,
+    "checks": {
+      "frozenInstall": "pnpm --frozen-lockfile --ignore-scripts --prod --os win32 --cpu x64",
+      "platformPackage": "@openai/codex-win32-x64",
+      "encoding": {
+        "ps1": 2,
+        "ascii": 5,
+        "parsed": 2
+      },
+      "candidate": "pass"
+    },
+    "builder": {
+      "platform": "wsl",
+      "node": "v24.18.0",
+      "zlib": "1.3.1-e00f703",
+      "pnpm": "10.24.0"
+    },
+    "startedAt": "2026-11-08T09:35:37.022Z",
+    "finishedAt": "2026-11-08T09:36:12.801Z",
+    "status": "candidate; not uploaded, no agent started on this computer"
+  },
+  "linux": {
+    "file": "sunmoon-link-0.5.7-686a74c-edge-public-linux-x64.tar.gz",
+    "bytes": 139188189,
+    "sha256": "ea0695017627faf2de0fc76911518bdfd5be0c23d8ce26ef2b315b8a4557e7a2",
+    "manifestSha256": "7520e546c4c83ed3692550a0f7210eff226c6de9ff3b6040ddefa5987c395143",
+    "site": "edge-public",
+    "sourceRevision": "686a74c463360b33a56accd41ae0904647323a8a"
+  },
+  "published": false
+}

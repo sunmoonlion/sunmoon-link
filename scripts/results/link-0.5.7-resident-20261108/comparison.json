@@ -1,0 +1,66 @@
+[
+  {
+    "mode": "unelevated",
+    "kind": "metadata50",
+    "baselineMedianMs": 28373.329100000003,
+    "baselineMaxMs": 29710.61280000001,
+    "candidateMedianMs": 35.58739999999989,
+    "candidateMaxMs": 38.04079999999976
+  },
+  {
+    "mode": "unelevated",
+    "kind": "read20",
+    "baselineMedianMs": 11212.102300000002,
+    "baselineMaxMs": 11802.360499999995,
+    "candidateMedianMs": 18.81899999999996,
+    "candidateMaxMs": 22.766900000000078
+  },
+  {
+    "mode": "unelevated",
+    "kind": "directory500",
+    "baselineMedianMs": 727.9632999999958,
+    "baselineMaxMs": 934.5758999999962,
+    "candidateMedianMs": 198.52559999999994,
+    "candidateMaxMs": 211.78550000000018
+  },
+  {
+    "mode": "unelevated",
+    "kind": "write10",
+    "baselineMedianMs": 5851.380000000005,
+    "baselineMaxMs": 5970.756599999993,
+    "candidateMedianMs": 18.496399999999994,
+    "candidateMaxMs": 25.108999999999924
+  },
+  {
+    "mode": "elevated",
+    "kind": "metadata50",
+    "baselineMedianMs": 54125.6566,
+    "baselineMaxMs": 55860.94,
+    "candidateMedianMs": 32.9983000000002,
+    "candidateMaxMs": 47.52639999999974
+  },
+  {
+    "mode": "elevated",
+    "kind": "read20",
+    "baselineMedianMs": 20817.791600000026,
+    "baselineMaxMs": 21834.60129999998,
+    "candidateMedianMs": 19.097099999999955,
+    "candidateMaxMs": 24.411599999999908
+  },
+  {
+    "mode": "elevated",
+    "kind": "directory500",
+    "baselineMedianMs": 1379.9833999999973,
+    "baselineMaxMs": 1476.652900000001,
+    "candidateMedianMs": 143.11209999999983,
+    "candidateMaxMs": 201.76139999999987
+  },
+  {
+    "mode": "elevated",
+    "kind": "write10",
+    "baselineMedianMs": 10990.568299999984,
+    "baselineMaxMs": 11037.392799999987,
+    "candidateMedianMs": 17.887499999999818,
+    "candidateMaxMs": 26.257500000000164
+  }
+]

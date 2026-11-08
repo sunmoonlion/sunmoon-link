@@ -1,0 +1,27 @@
+{
+  "startedAt": "2026-11-08T17:36:51.7326785+08:00",
+  "source": "686a74c463360b33a56accd41ae0904647323a8a",
+  "before": {
+    "version": "0.5.6",
+    "pid": 28412,
+    "relayStatus": "connected",
+    "active": 0,
+    "connections": 0,
+    "serviceActive": 0,
+    "serviceConnections": 0
+  },
+  "uninstallMs": 11018,
+  "installMs": 1720,
+  "configPreserved": true,
+  "after": {
+    "version": "0.5.7",
+    "pid": 27100,
+    "relayStatus": "connected"
+  },
+  "outcome": "installed-and-started",
+  "finishedAt": "2026-11-08T17:37:20.9217110+08:00",
+  "logonTaskPreviouslyEnabled": true,
+  "freshPairingPerformed": false,
+  "supervisorEnded": true,
+  "interopWrapperTerminatedAfterCompletion": true
+}

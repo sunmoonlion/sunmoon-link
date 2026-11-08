@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-08",
+  "source": "owner_reply_in_conversation",
+  "question": "0.5.7 已在本机安装并在线。请在 knowbench「我的电脑」浏览一次本机目录，再建一个空测试项目（不要发起模型对话），反馈是否成功、是否明显卡顿。",
+  "answer": "浏览和建项目均正常",
+  "independent_browser_automation_performed": false
+}
