@@ -101,15 +101,17 @@ test('interrupted removal retains its recovery marker, successful removal leaves
 });
 test('repair templates archive leftovers after external process collection and stay byte-identical', () => {
   const runtime=fs.readFileSync(new URL('../install.ps1.tmpl',import.meta.url));
-  const k8s=fs.readFileSync(process.env.SUNMOON_TEST_INSTALL_TEMPLATE ?? new URL('../../../../k8s/gitops/components/app-platform/knowbench-app/knowbench-backend/agent-releases/install.ps1.tmpl',import.meta.url));
+  const k8s=fs.readFileSync(process.env.SUNMOON_TEST_INSTALL_TEMPLATE ?? new URL('../../../../sunmoonun/gitops/components/app-platform/knowbench-app/knowbench-backend/agent-releases/install.ps1.tmpl',import.meta.url));
   assert.deepEqual(runtime,k8s);
   const text=runtime.toString('utf8');
   assert.ok(text.indexOf('--stop-only')<text.indexOf('[System.IO.Directory]::Move($Dest,$Broken)'));
   assert.ok(text.includes('上次升级没做完，已清理残留'));
 });
-test('installer preserves failure while giving an actionable old-window hint', () => {
+test('installer preserves failure and limits the old-window hint to locked-process errors', () => {
   const text=fs.readFileSync(new URL('../install.ps1.tmpl',import.meta.url),'utf8');
-  assert.match(text,/catch\s*\{\s*Write-Warning '可能有旧窗口的进程还开着，先在托盘退出、关掉所有 SunMoon 窗口再试'\s*throw\s*\}\s*finally/);
+  assert.match(text,/catch\s*\{\s*\$ErrMsg = \$_\.Exception\.Message/);
+  assert.match(text,/if \(\$ErrMsg -match '残留进程' -or \$ErrMsg -match '正在被另一个进程使用' -or \$ErrMsg -match 'locked\|in use'\)\s*\{\s*Write-Warning '可能有旧窗口的进程还开着，先在托盘退出、关掉所有 SunMoon 窗口再试'\s*\} else \{\s*Write-Warning \("安装中断：" \+ \$ErrMsg\)/);
+  assert.match(text,/throw\s*\}\s*finally\s*\{/);
 });
 
 test('uninstall preview keeps all files; apply removes only exact verified program inventory', t => {
